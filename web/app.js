@@ -126,6 +126,7 @@ let currentMenuVideo = null;
 let currentMenuTrigger = null;
 let toastTimer = null;
 let personalizationTimer = null;
+let personalizationBootstrapAttempted = false;
 const mobileViewport = window.matchMedia("(max-width: 680px)");
 
 function safeStorageGet(key) {
@@ -1309,14 +1310,15 @@ function updatePersonalizationPanel(message = "", isError = false) {
   elements.personalizationPanel.classList.toggle("connected", connected && !isError);
   elements.personalizationPanel.classList.toggle("error", isError);
   elements.personalizationTitle.textContent = connected
-    ? (isAccountView ? "เชื่อม YouTube แบบอ่านอย่างเดียวทั่ว MyTube แล้ว" : "ฟีดสำหรับคุณจาก YouTube พร้อมแล้ว")
+    ? (isAccountView ? "เชื่อม YouTube แบบอ่านอย่างเดียวทั่ว MyTube แล้ว" : "ฟีดส่วนตัวซิงก์อัตโนมัติแล้ว")
     : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
   elements.personalizationStatus.textContent = message || (connected
-    ? `${formatCompactNumber(personalization.subscriptionCount)} ช่องที่ติดตาม • ${formatCompactNumber(personalization.likedCount)} วิดีโอที่ชอบ • อัปเดต${formatAge(personalization.updatedAt)}`
+    ? `${formatCompactNumber(personalization.subscriptionCount)} ช่องที่ติดตาม • ${formatCompactNumber(personalization.likedCount)} วิดีโอที่ชอบ • ซิงก์อัตโนมัติ • อัปเดต${formatAge(personalization.updatedAt)}`
     : "ใช้สิทธิ์เดียวเพื่อเปิดการติดตามและวิดีโอที่ชอบในทุกหน้าของ MyTube");
   elements.connectYouTube.textContent = personalizationBusy ? "กำลังเชื่อม…" : connected ? "อัปเดตข้อมูล" : "เชื่อม YouTube";
-  elements.accountYouTube.querySelector("span:nth-child(2)").textContent = connected ? "อัปเดตข้อมูล YouTube" : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
+  elements.accountYouTube.querySelector("span:nth-child(2)").textContent = connected ? "ซิงก์ข้อมูล YouTube ใหม่" : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
   elements.connectYouTube.disabled = personalizationBusy;
+  elements.connectYouTube.hidden = connected;
   elements.accountYouTube.disabled = personalizationBusy;
   elements.clearPersonalization.hidden = !connected || personalizationBusy;
 }
@@ -1329,12 +1331,19 @@ function personalizationNeedsRefresh() {
 function scheduleAutomaticPersonalizationSync() {
   window.clearTimeout(personalizationTimer);
   personalizationTimer = null;
-  // Access tokens are intentionally kept in memory only. Do not trigger an
-  // OAuth popup on a fresh page load just because a cached snapshot exists.
-  // Automatic refresh is enabled after the user has connected in this
-  // browser session and a usable token is available.
-  if (!hasYouTubeConnection() || !youtubeAccessToken) return;
-  const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
+  if (!hasYouTubeConnection()) return;
+
+  // Access tokens are intentionally kept in memory only. On a fresh page load,
+  // make one silent request to reuse the existing Google grant. A single
+  // guarded attempt avoids popup loops when the grant has expired or is absent.
+  if (!youtubeAccessToken) {
+    if (personalizationBootstrapAttempted) return;
+    personalizationBootstrapAttempted = true;
+  }
+
+  const wait = youtubeAccessToken && !personalizationNeedsRefresh()
+    ? PERSONALIZATION_REFRESH_MS
+    : 1200;
   personalizationTimer = window.setTimeout(async () => {
     personalizationTimer = null;
     await connectYouTubePersonalization({ automatic: true });
