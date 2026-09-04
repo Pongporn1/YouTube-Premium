@@ -1121,6 +1121,8 @@ body[data-view="home"] .feed-section { padding-top: 16px; }
   .quick-watch-later { top: 7px; right: 7px; background: rgba(15,15,15,.82); border-radius: 50%; }
 
   .bottom-nav {
+    /* Keep the mobile navigation tappable above the floating mini-player. */
+    z-index: 140;
     height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
     padding: 2px 4px env(safe-area-inset-bottom);
     background: rgba(15,15,15,.96);
@@ -1173,8 +1175,13 @@ body[data-view="home"] .feed-section { padding-top: 16px; }
     font-weight: 800;
   }
   .mobile-avatar > * { grid-area: 1 / 1; }
+  .mobile-avatar, .mobile-avatar > * { pointer-events: none; }
   .mobile-avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
-  .account-menu { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px); }
+  .mobile-account-button { position: relative; z-index: 1; touch-action: manipulation; }
+  .account-menu {
+    z-index: 150;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px);
+  }
   .video-menu { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px) !important; }
   .toast { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 12px); }
 
