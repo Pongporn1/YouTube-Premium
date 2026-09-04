@@ -1,0 +1,56 @@
+<Window x:Class="MyTube.Views.ExternalLinkDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="External website blocked"
+        Width="560"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="#171A20"
+        Foreground="#F4F5F7"
+        ShowInTaskbar="False">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="This link points outside YouTube."
+                   FontSize="18"
+                   FontWeight="SemiBold" />
+        <TextBlock Grid.Row="1"
+                   Margin="0,10,0,14"
+                   Text="MyTube is configured for YouTube only. You can open the link in your default Windows browser."
+                   Foreground="#C5C9D2"
+                   TextWrapping="Wrap" />
+        <Border Grid.Row="2"
+                Padding="12"
+                Background="#0E1014"
+                CornerRadius="5">
+            <TextBox x:Name="UrlTextBox"
+                     BorderThickness="0"
+                     Background="Transparent"
+                     Foreground="#DDE0E7"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap" />
+        </Border>
+        <StackPanel Grid.Row="3"
+                    Margin="0,20,0,0"
+                    HorizontalAlignment="Right"
+                    Orientation="Horizontal">
+            <Button Width="92"
+                    Height="34"
+                    Margin="0,0,10,0"
+                    Content="Cancel"
+                    IsCancel="True" />
+            <Button Width="132"
+                    Height="34"
+                    Content="Open in Browser"
+                    IsDefault="True"
+                    Click="OnOpenInBrowser" />
+        </StackPanel>
+    </Grid>
+</Window>

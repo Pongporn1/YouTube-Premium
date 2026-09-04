@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "MyTube Focus",
+  "version": "1.0.0",
+  "description": "Personal YouTube-only cosmetic filtering and Focus Mode fallback for MyTube.",
+  "permissions": [
+    "storage",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "https://youtube.com/*",
+    "https://www.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://youtube.com/*",
+        "https://www.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "options_page": "options.html",
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "safe_generic_rules",
+        "enabled": true,
+        "path": "rules.json"
+      }
+    ]
+  }
+}

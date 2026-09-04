@@ -1,0 +1,17 @@
+.vs/
+.idea/
+**/bin/
+**/obj/
+artifacts/
+installer/Output/
+*.user
+*.suo
+*.nupkg
+TestResults/
+coverage/
+
+# MyTube runtime data must remain outside source control.
+UserData/
+Logs/
+settings.json
+*.tmp

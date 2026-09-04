@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MyTube Focus Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <h1>MyTube Focus</h1>
+    <p class="note">These settings run only on YouTube. The extension does not run on Google sign-in pages.</p>
+    <form id="settings">
+      <label><input id="hideShorts" type="checkbox"> Hide Shorts</label>
+      <label><input id="hideHomeFeed" type="checkbox"> Hide Home feed</label>
+      <label><input id="hideRecommendations" type="checkbox"> Hide recommendations</label>
+      <label><input id="hideComments" type="checkbox"> Hide comments</label>
+      <label><input id="hideMerch" type="checkbox"> Hide merch and promotional UI</label>
+      <label><input id="hidePromotions" type="checkbox"> Hide promoted content and sponsored cards</label>
+      <label><input id="hidePopups" type="checkbox"> Hide selected promotional popups</label>
+      <label class="focus"><input id="focusMode" type="checkbox"> Focus Mode</label>
+      <div class="actions">
+        <button id="reset" type="button">Reset</button>
+        <button type="submit">Save</button>
+      </div>
+      <p id="status" role="status" aria-live="polite"></p>
+    </form>
+  </main>
+  <script src="options.js"></script>
+</body>
+</html>
