@@ -1,9 +1,12 @@
 import { canonicalWatchUrl, privacyEmbedUrl } from "./video-utils.js";
 import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
+import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
 
 const WATCH_LATER_KEY = "mytube-private-watch-later-v3";
 const LEGACY_FAVORITES_KEY = "mytube-private-favorites-v2";
 const HISTORY_KEY = "mytube-private-history-v2";
+const PERSONALIZATION_KEY = "mytube-private-personalization-v1";
+const LAST_HOME_ORDER_KEY = "mytube-private-home-order-v1";
 const MAX_HISTORY = 1000;
 
 const elements = {
@@ -30,6 +33,12 @@ const elements = {
   searchInput: document.getElementById("search-input"),
   chips: document.getElementById("category-chips"),
   grid: document.getElementById("video-grid"),
+  personalizationPanel: document.getElementById("personalization-panel"),
+  personalizationTitle: document.getElementById("personalization-title"),
+  personalizationStatus: document.getElementById("personalization-status"),
+  connectYouTube: document.getElementById("connect-youtube"),
+  accountYouTube: document.getElementById("account-youtube"),
+  clearPersonalization: document.getElementById("clear-personalization"),
   feedLoader: document.getElementById("feed-loader"),
   feedSentinel: document.getElementById("feed-sentinel"),
   status: document.getElementById("status-message"),
@@ -81,6 +90,7 @@ const elements = {
 let storageFailed = false;
 let watchLater = loadWatchLater();
 let history = loadJson(HISTORY_KEY, []);
+let personalization = loadPersonalization();
 let videos = [];
 let currentVideo = null;
 let activeCategory = "";
@@ -96,6 +106,10 @@ let comments = [];
 let commentsNextPageToken = "";
 let commentsVideoId = "";
 let commentsTotal = 0;
+let googleClientId = "";
+let youtubeAccessToken = "";
+let youtubeTokenExpiresAt = 0;
+let personalizationBusy = false;
 let importTarget = "history";
 let currentMenuVideo = null;
 let currentMenuTrigger = null;
@@ -127,6 +141,37 @@ function loadJson(key, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function loadPersonalization() {
+  try {
+    const value = JSON.parse(safeStorageGet(PERSONALIZATION_KEY) || "null");
+    const items = Array.isArray(value?.items)
+      ? value.items.filter((item) => /^[A-Za-z0-9_-]{11}$/.test(String(item?.id || ""))).slice(0, 80)
+      : [];
+    return {
+      items,
+      subscriptionCount: Math.max(0, Number(value?.subscriptionCount) || 0),
+      likedCount: Math.max(0, Number(value?.likedCount) || 0),
+      updatedAt: String(value?.updatedAt || "")
+    };
+  } catch {
+    return { items: [], subscriptionCount: 0, likedCount: 0, updatedAt: "" };
+  }
+}
+
+function savePersonalization() {
+  return safeStorageSet(PERSONALIZATION_KEY, JSON.stringify(personalization));
+}
+
+function personalizedHomeItems(trending) {
+  const limit = Math.max(1, Math.min(24, trending.length || 24));
+  let mixed = mixPersonalizedFeed(personalization.items, trending, { history, limit });
+  const previous = safeStorageGet(LAST_HOME_ORDER_KEY);
+  const order = mixed.map((video) => video.id).join(",");
+  if (mixed.length > 1 && order === previous) mixed = [...mixed.slice(1), mixed[0]];
+  safeStorageSet(LAST_HOME_ORDER_KEY, mixed.map((video) => video.id).join(","));
+  return mixed;
 }
 
 function loadWatchLater() {
@@ -236,7 +281,14 @@ function createVideoCard(video) {
   const duration = document.createElement("span");
   duration.className = "duration";
   duration.textContent = video.duration || "วิดีโอ";
-  thumbnailButton.append(image, duration);
+  thumbnailButton.append(image);
+  if (video.recommendationReason) {
+    const reason = document.createElement("span");
+    reason.className = "recommendation-reason";
+    reason.textContent = video.recommendationReason;
+    thumbnailButton.append(reason);
+  }
+  thumbnailButton.append(duration);
   const quickWatchLater = document.createElement("button");
   quickWatchLater.className = `quick-watch-later${isInWatchLater(video.id) ? " active" : ""}`;
   quickWatchLater.type = "button";
@@ -365,9 +417,10 @@ async function fetchVideos(url, { append = false } = {}) {
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     if (requestId !== requestSerial || requestView !== activeView) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
+    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(incoming) : incoming;
     videos = append
       ? [...new Map([...videos, ...incoming].map((video) => [video.id, video])).values()]
-      : incoming;
+      : initialItems;
     nextPageToken = String(data.nextPageToken || "");
     render();
   } catch (error) {
@@ -900,6 +953,201 @@ function loadGoogleIdentity() {
   });
 }
 
+async function getGoogleClientId() {
+  if (googleClientId) return googleClientId;
+  const response = await fetch("/api/auth/config", { headers: { Accept: "application/json" } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.clientId) throw new Error("ยังไม่พบการตั้งค่า Google OAuth");
+  googleClientId = String(data.clientId);
+  return googleClientId;
+}
+
+function requestYouTubeAccessToken() {
+  if (youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000) return Promise.resolve(youtubeAccessToken);
+  return Promise.all([loadGoogleIdentity(), getGoogleClientId()]).then(([, clientId]) => new Promise((resolve, reject) => {
+    const client = window.google.accounts.oauth2.initTokenClient({
+      client_id: clientId,
+      scope: "https://www.googleapis.com/auth/youtube.readonly",
+      include_granted_scopes: true,
+      callback: (result) => {
+        if (!result?.access_token || result.error) {
+          reject(new Error("ไม่ได้รับสิทธิ์อ่านข้อมูล YouTube"));
+          return;
+        }
+        youtubeAccessToken = result.access_token;
+        youtubeTokenExpiresAt = Date.now() + Math.max(300, Number(result.expires_in) || 3600) * 1000;
+        resolve(youtubeAccessToken);
+      },
+      error_callback: () => reject(new Error("การเชื่อม YouTube ถูกยกเลิกหรือป๊อปอัปถูกบล็อก"))
+    });
+    client.requestAccessToken({ prompt: personalization.items.length ? "" : "consent" });
+  }));
+}
+
+async function authorizedYouTubeRequest(resource, parameters, token) {
+  const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
+  Object.entries(parameters).forEach(([name, value]) => {
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));
+  });
+  const response = await fetch(url, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (response.status === 401) {
+      youtubeAccessToken = "";
+      youtubeTokenExpiresAt = 0;
+      throw new Error("สิทธิ์ YouTube หมดอายุ กรุณากดเชื่อมอีกครั้ง");
+    }
+    const reason = String(data?.error?.errors?.[0]?.reason || "");
+    throw new Error(reason === "quotaExceeded"
+      ? "โควต้า YouTube API เต็มชั่วคราว กรุณาลองใหม่ภายหลัง"
+      : "อ่านข้อมูล YouTube ไม่สำเร็จ กรุณาตรวจสิทธิ์แล้วลองใหม่");
+  }
+  return data;
+}
+
+function shuffledCopy(items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[target]] = [copy[target], copy[index]];
+  }
+  return copy;
+}
+
+async function loadSubscriptions(token) {
+  const items = [];
+  let pageToken = "";
+  let totalResults = 0;
+  for (let page = 0; page < 2; page += 1) {
+    const data = await authorizedYouTubeRequest("subscriptions", {
+      part: "snippet",
+      mine: true,
+      maxResults: 50,
+      order: "relevance",
+      pageToken
+    }, token);
+    items.push(...(data.items || []));
+    totalResults = Math.max(totalResults, Number(data.pageInfo?.totalResults) || 0, items.length);
+    pageToken = String(data.nextPageToken || "");
+    if (!pageToken) break;
+  }
+  return { items, totalResults };
+}
+
+function channelThumbnailMap(channels) {
+  return new Map((channels || []).map((channel) => {
+    const thumbnails = channel?.snippet?.thumbnails || {};
+    return [String(channel?.id || ""), String(thumbnails.high?.url || thumbnails.medium?.url || thumbnails.default?.url || "")];
+  }));
+}
+
+async function buildPersonalizationSnapshot(token) {
+  const [mine, subscriptions] = await Promise.all([
+    authorizedYouTubeRequest("channels", { part: "contentDetails", mine: true }, token),
+    loadSubscriptions(token)
+  ]);
+  const likesPlaylistId = String(mine.items?.[0]?.contentDetails?.relatedPlaylists?.likes || "");
+  const subscriptionIds = [...new Set(subscriptions.items
+    .map((item) => String(item?.snippet?.resourceId?.channelId || ""))
+    .filter(Boolean))];
+  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, 8);
+
+  const [likes, selectedChannels] = await Promise.all([
+    likesPlaylistId
+      ? authorizedYouTubeRequest("playlistItems", { part: "contentDetails,snippet", playlistId: likesPlaylistId, maxResults: 20 }, token)
+      : Promise.resolve({ items: [], pageInfo: {} }),
+    selectedSubscriptionIds.length
+      ? authorizedYouTubeRequest("channels", { part: "snippet,contentDetails", id: selectedSubscriptionIds.join(","), maxResults: 50 }, token)
+      : Promise.resolve({ items: [] })
+  ]);
+
+  const likedIds = playlistVideoIds(likes);
+  const uploadPlaylists = (selectedChannels.items || [])
+    .map((channel) => String(channel?.contentDetails?.relatedPlaylists?.uploads || ""))
+    .filter(Boolean);
+  const uploadPages = await Promise.all(uploadPlaylists.map((playlistId) => authorizedYouTubeRequest("playlistItems", {
+    part: "contentDetails",
+    playlistId,
+    maxResults: 5
+  }, token).catch(() => ({ items: [] }))));
+  const uploadIds = uploadPages.flatMap(playlistVideoIds);
+  const candidateIds = [...new Set([...likedIds, ...uploadIds])].slice(0, 50);
+  if (candidateIds.length === 0) throw new Error("ยังไม่พบวิดีโอที่ชอบหรือคลิปใหม่จากช่องที่ติดตาม");
+
+  const details = await authorizedYouTubeRequest("videos", {
+    part: "snippet,contentDetails,statistics",
+    id: candidateIds.join(","),
+    maxResults: 50
+  }, token);
+  const videoChannelIds = [...new Set((details.items || []).map((item) => String(item?.snippet?.channelId || "")).filter(Boolean))];
+  const channelDetails = videoChannelIds.length
+    ? await authorizedYouTubeRequest("channels", { part: "snippet", id: videoChannelIds.join(","), maxResults: 50 }, token)
+    : { items: [] };
+  const thumbnails = channelThumbnailMap(channelDetails.items);
+  const likedSet = new Set(likedIds);
+  const items = (details.items || []).map((item) => {
+    const video = formatAuthorizedVideo(item, thumbnails);
+    return video ? { ...video, recommendationReason: likedSet.has(video.id) ? "วิดีโอที่คุณชอบ" : "ใหม่จากช่องที่ติดตาม" } : null;
+  }).filter(Boolean);
+  if (items.length === 0) throw new Error("วิดีโอจากบัญชีนี้ไม่พร้อมแสดงใน MyTube");
+  return {
+    items,
+    subscriptionCount: subscriptions.totalResults,
+    likedCount: Math.max(likedIds.length, Number(likes.pageInfo?.totalResults) || 0),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function updatePersonalizationPanel(message = "", isError = false) {
+  const connected = personalization.items.length > 0;
+  elements.personalizationPanel.classList.toggle("connected", connected && !isError);
+  elements.personalizationPanel.classList.toggle("error", isError);
+  elements.personalizationTitle.textContent = connected ? "ฟีดสำหรับคุณจาก YouTube พร้อมแล้ว" : "ทำหน้าแรกให้ตรงกับสิ่งที่คุณชอบ";
+  elements.personalizationStatus.textContent = message || (connected
+    ? `${formatCompactNumber(personalization.subscriptionCount)} ช่องที่ติดตาม • ${formatCompactNumber(personalization.likedCount)} วิดีโอที่ชอบ • อัปเดต${formatAge(personalization.updatedAt)}`
+    : "เชื่อม YouTube แบบอ่านอย่างเดียว เพื่อผสมคลิปจากช่องที่ติดตามและวิดีโอที่ชอบ");
+  elements.connectYouTube.textContent = personalizationBusy ? "กำลังเชื่อม…" : connected ? "อัปเดตความชอบ" : "เชื่อม YouTube";
+  elements.accountYouTube.querySelector("span:nth-child(2)").textContent = connected ? "อัปเดตฟีดสำหรับคุณ" : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
+  elements.connectYouTube.disabled = personalizationBusy;
+  elements.accountYouTube.disabled = personalizationBusy;
+  elements.clearPersonalization.hidden = !connected || personalizationBusy;
+}
+
+async function connectYouTubePersonalization() {
+  if (personalizationBusy) return;
+  personalizationBusy = true;
+  toggleAccountMenu(false);
+  updatePersonalizationPanel("เลือกบัญชีและอนุญาตสิทธิ์อ่าน YouTube ในหน้าต่าง Google");
+  let finalMessage = "";
+  let failed = false;
+  try {
+    const token = await requestYouTubeAccessToken();
+    updatePersonalizationPanel("กำลังอ่านช่องที่ติดตามและวิดีโอที่คุณชอบ…");
+    personalization = await buildPersonalizationSnapshot(token);
+    if (!savePersonalization()) finalMessage = "สร้างฟีดแล้ว แต่เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูลไว้";
+    if (activeView === "home") await fetchVideos(videoRequestUrl());
+  } catch (error) {
+    failed = true;
+    finalMessage = error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
+  } finally {
+    personalizationBusy = false;
+    updatePersonalizationPanel(finalMessage, failed);
+  }
+}
+
+function clearPersonalizedFeed() {
+  if (!window.confirm("ล้างข้อมูลฟีดสำหรับคุณที่เก็บในเบราว์เซอร์นี้หรือไม่?")) return;
+  personalization = { items: [], subscriptionCount: 0, likedCount: 0, updatedAt: "" };
+  safeStorageSet(PERSONALIZATION_KEY, "");
+  safeStorageSet(LAST_HOME_ORDER_KEY, "");
+  youtubeAccessToken = "";
+  youtubeTokenExpiresAt = 0;
+  updatePersonalizationPanel("ล้างข้อมูลฟีดสำหรับคุณแล้ว");
+  if (activeView === "home") fetchVideos(videoRequestUrl());
+}
+
 async function handleGoogleCredential(result) {
   setAuthMessage("กำลังยืนยันบัญชี Google…");
   try {
@@ -927,6 +1175,7 @@ async function initializeAuth() {
     const configResponse = await fetch("/api/auth/config", { headers: { Accept: "application/json" } });
     const config = await configResponse.json().catch(() => ({}));
     if (!configResponse.ok || !config.clientId) throw new Error("Google Sign-In ยังไม่ได้ตั้งค่าใน Vercel");
+    googleClientId = String(config.clientId);
     await loadGoogleIdentity();
     window.google.accounts.id.initialize({
       client_id: config.clientId,
@@ -966,6 +1215,9 @@ elements.accountPrivacy.addEventListener("click", () => {
   elements.privacyDialog.showModal();
 });
 elements.accountLogout.addEventListener("click", () => performLogout(elements.accountLogout));
+elements.connectYouTube.addEventListener("click", connectYouTubePersonalization);
+elements.accountYouTube.addEventListener("click", connectYouTubePersonalization);
+elements.clearPersonalization.addEventListener("click", clearPersonalizedFeed);
 elements.videoMenu.addEventListener("click", async (event) => {
   event.stopPropagation();
   const action = event.target.closest("[data-video-menu-action]")?.dataset.videoMenuAction;
@@ -1113,4 +1365,5 @@ const feedObserver = new IntersectionObserver((entries) => {
 }, { rootMargin: "900px 0px" });
 feedObserver.observe(elements.feedSentinel);
 
+updatePersonalizationPanel();
 initializeAuth();

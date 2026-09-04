@@ -87,11 +87,14 @@
         <button class="account-action" type="button" data-view="watch-later">
           <span aria-hidden="true">▣</span><span>วิดีโอดูภายหลัง</span><span aria-hidden="true">›</span>
         </button>
+        <button class="account-action" id="account-youtube" type="button">
+          <span aria-hidden="true">▶</span><span>เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว</span><span aria-hidden="true">›</span>
+        </button>
         <button class="account-action account-signout" id="account-logout" type="button">
           <span aria-hidden="true">↪</span><span>ออกจากระบบ MyTube</span><span></span>
         </button>
       </div>
-      <p class="account-note">MyTube ใช้ Google เพื่อยืนยันตัวตนเท่านั้น และไม่สามารถดูรหัสผ่านของคุณได้</p>
+      <p class="account-note">MyTube ไม่เห็นรหัสผ่าน และจะอ่านข้อมูล YouTube เฉพาะเมื่อคุณกดอนุญาตเท่านั้น</p>
     </section>
   </header>
 
@@ -165,6 +168,15 @@
         <button class="tool-button danger" id="clear-library" type="button">ล้างรายการ</button>
       </div>
       <p class="import-message" id="import-message" hidden aria-live="polite"></p>
+      <section class="personalization-panel" id="personalization-panel" aria-labelledby="personalization-title">
+        <div class="personalization-spark" aria-hidden="true">✦</div>
+        <div class="personalization-copy">
+          <strong id="personalization-title">ทำหน้าแรกให้ตรงกับสิ่งที่คุณชอบ</strong>
+          <p id="personalization-status">เชื่อม YouTube แบบอ่านอย่างเดียว เพื่อผสมคลิปจากช่องที่ติดตามและวิดีโอที่ชอบ</p>
+        </div>
+        <button class="personalization-button" id="connect-youtube" type="button">เชื่อม YouTube</button>
+        <button class="personalization-clear" id="clear-personalization" type="button" hidden aria-label="ล้างข้อมูลฟีดสำหรับคุณ">×</button>
+      </section>
       <p class="status-message" id="status-message" role="status" aria-live="polite">กำลังโหลดวิดีโอ…</p>
       <div class="video-grid" id="video-grid" aria-busy="true"></div>
       <div class="feed-loader" id="feed-loader" hidden role="status" aria-live="polite">
@@ -255,6 +267,7 @@
     <h2>เว็บส่วนตัวของคุณ</h2>
     <ul>
       <li>Google Sign-In จำกัดหน้าเว็บไว้สำหรับบัญชีที่อนุญาต</li>
+      <li>ฟีดสำหรับคุณใช้สิทธิ์ YouTube แบบอ่านอย่างเดียว และไม่เก็บ access token ไว้ถาวร</li>
       <li>API key อยู่ฝั่งเซิร์ฟเวอร์และไม่ถูกส่งเข้าเบราว์เซอร์</li>
       <li>ดูภายหลังและประวัติ MyTube เก็บใน Local Storage ของโดเมนนี้</li>
       <li>ข้อมูล YouTube เดิมต้องนำเข้าผ่านลิงก์หรือ Google Takeout</li>
