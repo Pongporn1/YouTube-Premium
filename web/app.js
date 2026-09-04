@@ -1,4 +1,4 @@
-import { canonicalWatchUrl, privacyEmbedUrl } from "./video-utils.js";
+import { canonicalWatchUrl, isStrictMusicVideo, privacyEmbedUrl } from "./video-utils.js";
 import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
 
@@ -452,9 +452,10 @@ async function fetchVideos(url, { append = false } = {}) {
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     if (requestId !== requestSerial || requestView !== activeView) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
-    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(incoming) : incoming;
+    const filteredIncoming = activeCategory === "10" ? incoming.filter(isStrictMusicVideo) : incoming;
+    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
     videos = append
-      ? [...new Map([...videos, ...incoming].map((video) => [video.id, video])).values()]
+      ? [...new Map([...videos, ...filteredIncoming].map((video) => [video.id, video])).values()]
       : initialItems;
     nextPageToken = String(data.nextPageToken || "");
     render();
@@ -683,9 +684,29 @@ function createComment(comment, compact = false) {
 
 function renderComments() {
   elements.commentsList.replaceChildren(...comments.map((comment) => createComment(comment)));
-  elements.commentsCount.textContent = commentsTotal
+  const countText = commentsTotal
     ? `${formatCompactNumber(commentsTotal)} ความคิดเห็น`
     : "ความคิดเห็น";
+  elements.commentsCount.textContent = countText;
+  const teaserCount = document.getElementById("comments-teaser-count");
+  if (teaserCount) teaserCount.textContent = commentsTotal ? formatCompactNumber(commentsTotal) : "";
+  const teaserText = document.getElementById("teaser-text");
+  const teaserAvatar = document.getElementById("teaser-avatar");
+  if (comments.length > 0 && teaserText && teaserAvatar) {
+    const topComment = comments[0];
+    teaserText.textContent = topComment.text;
+    teaserAvatar.textContent = avatarText(topComment.author);
+    teaserAvatar.style.backgroundColor = avatarColor(topComment.author);
+    if (topComment.authorThumbnail) {
+      const img = document.createElement("img");
+      img.src = topComment.authorThumbnail;
+      img.alt = "";
+      img.referrerPolicy = "no-referrer";
+      teaserAvatar.replaceChildren(img);
+    }
+  } else if (teaserText) {
+    teaserText.textContent = "ยังไม่มีความคิดเห็นในวิดีโอนี้";
+  }
   elements.loadMoreComments.hidden = !commentsNextPageToken;
   elements.loadMoreComments.disabled = false;
 }
@@ -774,6 +795,10 @@ function openVideo(video) {
   for (const anchor of [elements.playerAvatar, elements.playerChannel]) {
     if (channelHref) anchor.href = channelHref;
     else anchor.removeAttribute("href");
+  }
+  const channelSubscribe = document.getElementById("channel-subscribe");
+  if (channelSubscribe) {
+    channelSubscribe.href = channelHref || canonicalWatchUrl(video.id);
   }
   elements.openYouTube.href = canonicalWatchUrl(video.id);
   updatePlayerWatchLater();
@@ -1409,6 +1434,11 @@ elements.mobileSearchClose.addEventListener("click", () => {
   elements.searchInput.blur();
 });
 
+elements.mobileSearchClose.addEventListener("click", () => {
+  elements.body.classList.remove("mobile-searching");
+  elements.searchInput.blur();
+});
+
 elements.chips.addEventListener("click", (event) => {
   const button = event.target.closest("[data-category]");
   if (!button) return;
@@ -1486,8 +1516,23 @@ elements.minimizePlayer.addEventListener("click", minimizeVideo);
 elements.expandPlayer.addEventListener("click", expandVideo);
 elements.shareCurrent.addEventListener("click", shareCurrentVideo);
 elements.watchDialog.addEventListener("click", (event) => {
-  if (event.target === elements.watchDialog && !elements.watchDialog.classList.contains("mini-player")) closeVideo();
+  if (elements.watchDialog.classList.contains("mini-player")) {
+    if (event.target.closest("#close-player")) {
+      closeVideo();
+      return;
+    }
+    expandVideo();
+    return;
+  }
+  if (event.target === elements.watchDialog) closeVideo();
 });
+const commentsTeaser = document.getElementById("comments-teaser");
+if (commentsTeaser) {
+  commentsTeaser.addEventListener("click", () => {
+    const commentsSection = document.querySelector(".comments-section");
+    commentsSection?.scrollIntoView({ behavior: "smooth" });
+  });
+}
 elements.watchDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeVideo();

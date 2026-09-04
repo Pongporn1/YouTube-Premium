@@ -2,6 +2,9 @@ const YOUTUBE_API_URL = "https://www.googleapis.com/youtube/v3";
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const CATEGORY_PATTERN = /^\d{1,3}$/;
 
+export { isStrictMusicVideo, NON_MUSIC_PATTERNS } from "../video-utils.js";
+
+
 export function parseDuration(value) {
   const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(value || ""));
   if (!match) return "";
@@ -41,6 +44,7 @@ export function formatVideo(item) {
     title: String(snippet.title || `YouTube video ${id}`).slice(0, 300),
     channel: String(snippet.channelTitle || "YouTube").slice(0, 120),
     channelId: String(snippet.channelId || "").slice(0, 80),
+    categoryId: String(snippet.categoryId || "").slice(0, 10),
     publishedAt: String(snippet.publishedAt || ""),
     thumbnail: String(thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
     duration: parseDuration(item.contentDetails?.duration),
