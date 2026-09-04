@@ -1178,9 +1178,41 @@ body[data-view="home"] .feed-section { padding-top: 16px; }
   .mobile-avatar, .mobile-avatar > * { pointer-events: none; }
   .mobile-avatar img { width: 100%; height: 100%; display: block; object-fit: cover; }
   .mobile-account-button { position: relative; z-index: 1; touch-action: manipulation; }
+  body.account-menu-open { overflow: hidden; }
   .account-menu {
-    z-index: 150;
-    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px);
+    z-index: 220;
+    top: 4px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-height: none;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -18px 60px rgba(0,0,0,.58);
+  }
+  .account-profile {
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 16px;
+    padding: 28px 22px 20px;
+  }
+  .account-avatar-large { width: 72px; height: 72px; }
+  .account-profile-copy strong { font-size: 1.08rem; }
+  .account-profile-copy > span { font-size: .9rem; }
+  .account-profile-copy small { font-size: .74rem; }
+  .account-actions { padding: 12px; }
+  .account-action {
+    min-height: 56px;
+    grid-template-columns: 32px minmax(0, 1fr) 22px;
+    gap: 8px;
+    padding: 8px 14px;
+    font-size: 1rem;
+  }
+  .account-action > span:first-child { font-size: .92rem; }
+  .account-note {
+    padding: 16px 22px calc(22px + env(safe-area-inset-bottom));
+    font-size: .74rem;
   }
   .video-menu { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 8px) !important; }
   .toast { bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 12px); }

@@ -1039,6 +1039,7 @@ function setAccountAvatar(image, fallback, picture, initials) {
 function toggleAccountMenu(force) {
   const shouldOpen = typeof force === "boolean" ? force : elements.accountMenu.hidden;
   elements.accountMenu.hidden = !shouldOpen;
+  elements.body.classList.toggle("account-menu-open", shouldOpen);
   elements.accountButton.setAttribute("aria-expanded", String(shouldOpen));
   elements.mobileAccountButton.setAttribute("aria-expanded", String(shouldOpen));
 }
