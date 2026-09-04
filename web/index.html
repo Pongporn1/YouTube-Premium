@@ -167,6 +167,11 @@
       <p class="import-message" id="import-message" hidden aria-live="polite"></p>
       <p class="status-message" id="status-message" role="status" aria-live="polite">กำลังโหลดวิดีโอ…</p>
       <div class="video-grid" id="video-grid" aria-busy="true"></div>
+      <div class="feed-loader" id="feed-loader" hidden role="status" aria-live="polite">
+        <span class="loading-spinner" aria-hidden="true"></span>
+        <span>กำลังโหลดวิดีโอเพิ่มเติม…</span>
+      </div>
+      <div class="feed-sentinel" id="feed-sentinel" hidden aria-hidden="true"></div>
       <div class="empty-state" id="empty-state" hidden>
         <div class="empty-icon">⌕</div>
         <h2 id="empty-title">ยังไม่พบวิดีโอ</h2>
@@ -201,15 +206,30 @@
                 referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
       </div>
       <div class="watch-meta">
-        <div class="channel-avatar" id="player-channel-avatar">M</div>
+        <a class="channel-avatar" id="player-channel-avatar" target="_blank" rel="noopener noreferrer" aria-label="เปิดช่องบน YouTube">M</a>
         <div class="watch-copy">
           <h2 id="player-title"></h2>
-          <p><span id="player-channel"></span><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
+          <p><a class="player-channel-link" id="player-channel" target="_blank" rel="noopener noreferrer"></a><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
         </div>
         <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
         <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
       </div>
       <p class="ad-note">ตัวเล่นนี้ใช้ YouTube Embed โฆษณาอาจแสดงตามการตัดสินใจของ YouTube</p>
+      <section class="comments-section" aria-labelledby="comments-heading">
+        <div class="comments-heading-row">
+          <h3 id="comments-heading"><span id="comments-count">ความคิดเห็น</span></h3>
+          <label class="comments-sort" for="comments-order">
+            <span>เรียงตาม</span>
+            <select id="comments-order">
+              <option value="relevance">ความคิดเห็นยอดนิยม</option>
+              <option value="time">ใหม่ล่าสุด</option>
+            </select>
+          </label>
+        </div>
+        <p class="comments-status" id="comments-status" role="status" aria-live="polite">เลือกวิดีโอเพื่อดูความคิดเห็น</p>
+        <div class="comments-list" id="comments-list"></div>
+        <button class="load-more-comments" id="load-more-comments" type="button" hidden>ดูความคิดเห็นเพิ่มเติม</button>
+      </section>
     </div>
   </dialog>
 

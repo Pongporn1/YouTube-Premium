@@ -30,6 +30,8 @@ const elements = {
   searchInput: document.getElementById("search-input"),
   chips: document.getElementById("category-chips"),
   grid: document.getElementById("video-grid"),
+  feedLoader: document.getElementById("feed-loader"),
+  feedSentinel: document.getElementById("feed-sentinel"),
   status: document.getElementById("status-message"),
   title: document.getElementById("feed-title"),
   eyebrow: document.getElementById("feed-eyebrow"),
@@ -53,6 +55,11 @@ const elements = {
   playerAvatar: document.getElementById("player-channel-avatar"),
   favoriteCurrent: document.getElementById("favorite-current"),
   openYouTube: document.getElementById("open-youtube"),
+  commentsCount: document.getElementById("comments-count"),
+  commentsOrder: document.getElementById("comments-order"),
+  commentsStatus: document.getElementById("comments-status"),
+  commentsList: document.getElementById("comments-list"),
+  loadMoreComments: document.getElementById("load-more-comments"),
   privacyButton: document.getElementById("privacy-button"),
   privacyDialog: document.getElementById("privacy-dialog"),
   closePrivacy: document.getElementById("close-privacy"),
@@ -81,6 +88,14 @@ let activeView = "home";
 let activeQuery = "";
 let requestController = null;
 let requestSerial = 0;
+let nextPageToken = "";
+let loadingMore = false;
+let commentController = null;
+let commentSerial = 0;
+let comments = [];
+let commentsNextPageToken = "";
+let commentsVideoId = "";
+let commentsTotal = 0;
 let importTarget = "history";
 let currentMenuVideo = null;
 let currentMenuTrigger = null;
@@ -143,6 +158,11 @@ function formatViews(value) {
   return `${new Intl.NumberFormat("th-TH", { notation: "compact", maximumFractionDigits: 1 }).format(number)} ครั้ง`;
 }
 
+function formatCompactNumber(value) {
+  const number = Math.max(0, Number(value) || 0);
+  return new Intl.NumberFormat("th-TH", { notation: "compact", maximumFractionDigits: 1 }).format(number);
+}
+
 function formatAge(value) {
   const timestamp = new Date(value).getTime();
   if (!Number.isFinite(timestamp)) return "";
@@ -161,6 +181,13 @@ function avatarColor(channel) {
   const palette = ["#6c5ce7", "#e84393", "#0984e3", "#00a884", "#d35400", "#b33939", "#6d4c41"];
   const hash = [...String(channel || "")].reduce((total, char) => total + char.charCodeAt(0), 0);
   return palette[hash % palette.length];
+}
+
+function youtubeChannelUrl(channelId) {
+  const id = String(channelId || "");
+  return /^[A-Za-z0-9_-]{8,80}$/.test(id)
+    ? `https://www.youtube.com/channel/${encodeURIComponent(id)}`
+    : "";
 }
 
 function createSkeleton() {
@@ -221,9 +248,16 @@ function createVideoCard(video) {
 
   const body = document.createElement("div");
   body.className = "card-body";
-  const avatar = document.createElement("div");
+  const channelHref = youtubeChannelUrl(video.channelId);
+  const avatar = document.createElement(channelHref ? "a" : "div");
   avatar.className = "channel-avatar";
   avatar.style.backgroundColor = avatarColor(video.channel);
+  if (channelHref) {
+    avatar.href = channelHref;
+    avatar.target = "_blank";
+    avatar.rel = "noopener noreferrer";
+    avatar.setAttribute("aria-label", `เปิดช่อง ${video.channel} บน YouTube`);
+  }
   const channelPicture = safeProfilePicture(video.channelThumbnail);
   if (channelPicture) {
     const channelImage = document.createElement("img");
@@ -248,12 +282,11 @@ function createVideoCard(video) {
   titleButton.dataset.action = "play";
   titleButton.textContent = video.title;
   title.append(titleButton);
-  const hasChannelLink = /^[A-Za-z0-9_-]{8,80}$/.test(String(video.channelId || ""));
-  const channel = document.createElement(hasChannelLink ? "a" : "p");
+  const channel = document.createElement(channelHref ? "a" : "p");
   channel.className = "channel-link";
   channel.textContent = video.channel;
-  if (hasChannelLink) {
-    channel.href = `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`;
+  if (channelHref) {
+    channel.href = channelHref;
     channel.target = "_blank";
     channel.rel = "noopener noreferrer";
   }
@@ -299,32 +332,65 @@ function render(items = videos) {
   elements.empty.hidden = visibleItems.length > 0;
   configureEmptyState();
   setStatus(`${visibleItems.length} วิดีโอ`);
+  elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
 }
 
-async function fetchVideos(url) {
-  requestController?.abort();
+function videoRequestUrl(pageToken = "") {
+  const params = new URLSearchParams();
+  if (activeView === "search") params.set("q", activeQuery);
+  else if (activeCategory) params.set("category", activeCategory);
+  if (pageToken) params.set("pageToken", pageToken);
+  return `/api/${activeView === "search" ? "search" : "feed"}?${params.toString()}`;
+}
+
+async function fetchVideos(url, { append = false } = {}) {
+  if (append && loadingMore) return;
+  if (!append) {
+    requestController?.abort();
+    nextPageToken = "";
+  }
   const controller = new AbortController();
   const requestId = ++requestSerial;
   const requestView = activeView;
   requestController = controller;
-  showSkeletons();
-  setStatus("กำลังโหลดวิดีโอ…");
+  loadingMore = append;
+  elements.feedLoader.hidden = !append;
+  if (!append) {
+    showSkeletons();
+    setStatus("กำลังโหลดวิดีโอ…");
+  }
   try {
     const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     if (requestId !== requestSerial || requestView !== activeView) return;
-    videos = Array.isArray(data.items) ? data.items : [];
+    const incoming = Array.isArray(data.items) ? data.items : [];
+    videos = append
+      ? [...new Map([...videos, ...incoming].map((video) => [video.id, video])).values()]
+      : incoming;
+    nextPageToken = String(data.nextPageToken || "");
     render();
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestId !== requestSerial || requestView !== activeView) return;
-    videos = [];
-    render();
+    if (!append) {
+      videos = [];
+      render();
+    }
     setStatus(error.message || "โหลดรายการไม่สำเร็จ กรุณาลองใหม่", true);
   } finally {
     if (requestController === controller) requestController = null;
+    if (requestId === requestSerial) {
+      loadingMore = false;
+      elements.feedLoader.hidden = true;
+      elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
+    }
   }
+}
+
+function loadNextVideoPage() {
+  if (!nextPageToken || loadingMore || !["home", "search"].includes(activeView)) return;
+  fetchVideos(videoRequestUrl(nextPageToken), { append: true });
 }
 
 function activateView(view) {
@@ -334,6 +400,10 @@ function activateView(view) {
     requestSerial += 1;
     requestController?.abort();
     requestController = null;
+    nextPageToken = "";
+    loadingMore = false;
+    elements.feedLoader.hidden = true;
+    elements.feedSentinel.hidden = true;
   }
   elements.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   elements.chips.hidden = view !== "home";
@@ -356,7 +426,7 @@ function activateView(view) {
     elements.searchInput.value = "";
     elements.title.textContent = "กำลังมาแรงในไทย";
     elements.eyebrow.textContent = "MYTUBE • THAILAND";
-    fetchVideos(`/api/feed?category=${encodeURIComponent(activeCategory)}`);
+    fetchVideos(videoRequestUrl());
   }
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
@@ -436,6 +506,143 @@ function addHistory(video) {
   saveLocal();
 }
 
+function createCommentAvatar(comment, compact = false) {
+  const href = youtubeChannelUrl(comment.authorChannelId);
+  const avatar = document.createElement(href ? "a" : "div");
+  avatar.className = `comment-avatar${compact ? " compact" : ""}`;
+  avatar.style.backgroundColor = avatarColor(comment.author);
+  if (href) {
+    avatar.href = href;
+    avatar.target = "_blank";
+    avatar.rel = "noopener noreferrer";
+    avatar.setAttribute("aria-label", `เปิดช่อง ${comment.author} บน YouTube`);
+  }
+  const picture = safeProfilePicture(comment.authorImage);
+  if (picture) {
+    const image = document.createElement("img");
+    image.src = picture;
+    image.alt = "";
+    image.loading = "lazy";
+    image.referrerPolicy = "no-referrer";
+    image.addEventListener("error", () => {
+      image.remove();
+      avatar.textContent = avatarText(comment.author);
+    }, { once: true });
+    avatar.append(image);
+  } else {
+    avatar.textContent = avatarText(comment.author);
+  }
+  return avatar;
+}
+
+function createComment(comment, compact = false) {
+  const article = document.createElement("article");
+  article.className = `comment${compact ? " comment-reply" : ""}`;
+  const avatar = createCommentAvatar(comment, compact);
+  const copy = document.createElement("div");
+  copy.className = "comment-copy";
+  const header = document.createElement("div");
+  header.className = "comment-byline";
+  const href = youtubeChannelUrl(comment.authorChannelId);
+  const author = document.createElement(href ? "a" : "strong");
+  author.textContent = comment.author;
+  if (href) {
+    author.href = href;
+    author.target = "_blank";
+    author.rel = "noopener noreferrer";
+  }
+  const age = document.createElement("span");
+  age.textContent = formatAge(comment.publishedAt);
+  header.append(author, age);
+  const text = document.createElement("p");
+  text.textContent = comment.text;
+  const meta = document.createElement("div");
+  meta.className = "comment-meta";
+  const likes = document.createElement("span");
+  likes.textContent = comment.likes ? `♡ ${formatCompactNumber(comment.likes)}` : "♡";
+  meta.append(likes);
+  copy.append(header, text, meta);
+
+  if (!compact && (comment.replyCount || comment.replies?.length)) {
+    const replySummary = document.createElement("span");
+    replySummary.className = "reply-summary";
+    replySummary.textContent = `${formatCompactNumber(comment.replyCount || comment.replies.length)} คำตอบ`;
+    meta.append(replySummary);
+    if (comment.replies?.length) {
+      const replies = document.createElement("div");
+      replies.className = "comment-replies";
+      replies.append(...comment.replies.map((reply) => createComment(reply, true)));
+      copy.append(replies);
+    }
+  }
+  article.append(avatar, copy);
+  return article;
+}
+
+function renderComments() {
+  elements.commentsList.replaceChildren(...comments.map((comment) => createComment(comment)));
+  elements.commentsCount.textContent = commentsTotal
+    ? `${formatCompactNumber(commentsTotal)} ความคิดเห็น`
+    : "ความคิดเห็น";
+  elements.loadMoreComments.hidden = !commentsNextPageToken;
+  elements.loadMoreComments.disabled = false;
+}
+
+async function loadComments(videoId, { append = false } = {}) {
+  if (!videoId || (append && !commentsNextPageToken)) return;
+  if (!append) {
+    commentController?.abort();
+    comments = [];
+    commentsNextPageToken = "";
+    commentsTotal = Math.max(0, Number(currentVideo?.comments) || 0);
+    commentsVideoId = videoId;
+    renderComments();
+  }
+  const controller = new AbortController();
+  const requestId = ++commentSerial;
+  commentController = controller;
+  elements.commentsStatus.textContent = append ? "กำลังโหลดความคิดเห็นเพิ่มเติม…" : "กำลังโหลดความคิดเห็นจริงจาก YouTube…";
+  elements.loadMoreComments.disabled = true;
+  const params = new URLSearchParams({ videoId, order: elements.commentsOrder.value });
+  if (append) params.set("pageToken", commentsNextPageToken);
+  try {
+    const response = await fetch(`/api/comments?${params.toString()}`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "โหลดความคิดเห็นไม่สำเร็จ");
+    if (requestId !== commentSerial || commentsVideoId !== videoId || currentVideo?.id !== videoId) return;
+    if (data.disabled) {
+      comments = [];
+      commentsNextPageToken = "";
+      commentsTotal = 0;
+      renderComments();
+      elements.commentsStatus.textContent = "วิดีโอนี้ปิดความคิดเห็นไว้";
+      return;
+    }
+    const incoming = Array.isArray(data.items) ? data.items : [];
+    comments = append
+      ? [...new Map([...comments, ...incoming].map((comment) => [comment.id, comment])).values()]
+      : incoming;
+    commentsNextPageToken = String(data.nextPageToken || "");
+    commentsTotal = Math.max(comments.length, Number(currentVideo?.comments) || 0, Number(data.totalResults) || 0);
+    renderComments();
+    elements.commentsStatus.textContent = comments.length
+      ? commentsTotal > comments.length
+        ? `แสดง ${formatCompactNumber(comments.length)} จาก ${formatCompactNumber(commentsTotal)} ความคิดเห็น`
+        : `แสดง ${formatCompactNumber(comments.length)} ความคิดเห็น`
+      : "ยังไม่มีความคิดเห็นในวิดีโอนี้";
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    if (requestId !== commentSerial || commentsVideoId !== videoId) return;
+    elements.commentsStatus.textContent = error.message || "โหลดความคิดเห็นไม่สำเร็จ กรุณาลองใหม่";
+    elements.loadMoreComments.disabled = false;
+  } finally {
+    if (commentController === controller) commentController = null;
+  }
+}
+
 function openVideo(video) {
   currentVideo = video;
   addHistory(video);
@@ -443,16 +650,44 @@ function openVideo(video) {
   elements.playerTitle.textContent = video.title;
   elements.playerChannel.textContent = video.channel;
   elements.playerStats.textContent = formatViews(video.views);
+  elements.playerAvatar.replaceChildren();
   elements.playerAvatar.textContent = avatarText(video.channel);
   elements.playerAvatar.style.backgroundColor = avatarColor(video.channel);
+  const channelPicture = safeProfilePicture(video.channelThumbnail);
+  if (channelPicture) {
+    const image = document.createElement("img");
+    image.src = channelPicture;
+    image.alt = "";
+    image.referrerPolicy = "no-referrer";
+    image.addEventListener("error", () => {
+      image.remove();
+      elements.playerAvatar.textContent = avatarText(video.channel);
+    }, { once: true });
+    elements.playerAvatar.replaceChildren(image);
+  }
+  const channelHref = youtubeChannelUrl(video.channelId);
+  for (const anchor of [elements.playerAvatar, elements.playerChannel]) {
+    if (channelHref) anchor.href = channelHref;
+    else anchor.removeAttribute("href");
+  }
   elements.openYouTube.href = canonicalWatchUrl(video.id);
   updatePlayerWatchLater();
   elements.watchDialog.showModal();
+  loadComments(video.id);
 }
 
 function closeVideo() {
-  elements.watchDialog.close();
+  if (elements.watchDialog.open) elements.watchDialog.close();
   elements.player.src = "";
+  commentSerial += 1;
+  commentController?.abort();
+  commentController = null;
+  commentsVideoId = "";
+  commentsNextPageToken = "";
+  comments = [];
+  commentsTotal = 0;
+  renderComments();
+  elements.commentsStatus.textContent = "เลือกวิดีโอเพื่อดูความคิดเห็น";
   currentVideo = null;
 }
 
@@ -505,10 +740,13 @@ async function enrichImportedVideos(items) {
       ...item,
       title: item.title === `YouTube video ${item.id}` ? details.title : item.title,
       channel: item.channel === "YouTube" ? details.channel : item.channel,
+      channelId: item.channelId || details.channelId,
+      channelThumbnail: item.channelThumbnail || details.channelThumbnail,
       publishedAt: item.publishedAt || details.publishedAt,
       thumbnail: details.thumbnail || item.thumbnail,
       duration: item.duration || details.duration,
-      views: item.views === "0" ? details.views : item.views
+      views: item.views === "0" ? details.views : item.views,
+      comments: item.comments || details.comments
     };
   });
 }
@@ -778,7 +1016,7 @@ elements.searchForm.addEventListener("submit", (event) => {
   elements.importMessage.hidden = true;
   elements.title.textContent = `ผลค้นหา “${query}”`;
   elements.eyebrow.textContent = "SEARCH RESULTS";
-  fetchVideos(`/api/search?q=${encodeURIComponent(query)}`);
+  fetchVideos(videoRequestUrl());
 });
 
 elements.chips.addEventListener("click", (event) => {
@@ -787,7 +1025,7 @@ elements.chips.addEventListener("click", (event) => {
   activeCategory = button.dataset.category;
   [...elements.chips.querySelectorAll("[data-category]")].forEach((item) => item.classList.toggle("active", item === button));
   elements.title.textContent = activeCategory ? button.textContent : "กำลังมาแรงในไทย";
-  fetchVideos(`/api/feed?category=${encodeURIComponent(activeCategory)}`);
+  fetchVideos(videoRequestUrl());
 });
 
 elements.grid.addEventListener("click", (event) => {
@@ -807,8 +1045,7 @@ elements.grid.addEventListener("click", (event) => {
 elements.voiceSearch.addEventListener("click", startVoiceSearch);
 
 elements.refresh.addEventListener("click", () => {
-  if (activeView === "search" && activeQuery) fetchVideos(`/api/search?q=${encodeURIComponent(activeQuery)}`);
-  else if (activeView === "home") fetchVideos(`/api/feed?category=${encodeURIComponent(activeCategory)}`);
+  if ((activeView === "search" && activeQuery) || activeView === "home") fetchVideos(videoRequestUrl());
   else render();
 });
 elements.backHome.addEventListener("click", () => {
@@ -854,11 +1091,26 @@ elements.applyImport.addEventListener("click", async () => {
 });
 elements.closePlayer.addEventListener("click", closeVideo);
 elements.watchDialog.addEventListener("click", (event) => { if (event.target === elements.watchDialog) closeVideo(); });
+elements.watchDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeVideo();
+});
 elements.favoriteCurrent.addEventListener("click", () => { if (currentVideo) toggleWatchLater(currentVideo); });
+elements.loadMoreComments.addEventListener("click", () => {
+  if (commentsVideoId) loadComments(commentsVideoId, { append: true });
+});
+elements.commentsOrder.addEventListener("change", () => {
+  if (currentVideo) loadComments(currentVideo.id);
+});
 elements.privacyButton.addEventListener("click", () => elements.privacyDialog.showModal());
 elements.closePrivacy.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDone.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDialog.addEventListener("click", (event) => { if (event.target === elements.privacyDialog) elements.privacyDialog.close(); });
 elements.logoutButton.addEventListener("click", () => performLogout(elements.logoutButton));
+
+const feedObserver = new IntersectionObserver((entries) => {
+  if (entries.some((entry) => entry.isIntersecting)) loadNextVideoPage();
+}, { rootMargin: "900px 0px" });
+feedObserver.observe(elements.feedSentinel);
 
 initializeAuth();

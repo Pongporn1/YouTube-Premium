@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check app.js && node --check library-utils.js && node --check video-utils.js && node --check api/video.js && node --check api/youtube-client.js && node --check api/feed.js && node --check api/search.js && node --check api/auth/session-core.js && node --check api/auth/config.js && node --check api/auth/google.js && node --check api/auth/session.js && node --check api/auth/logout.js",
+    "check": "node --check app.js && node --check library-utils.js && node --check video-utils.js && node --check api/video.js && node --check api/youtube-client.js && node --check api/feed.js && node --check api/search.js && node --check api/comments.js && node --check api/auth/session-core.js && node --check api/auth/config.js && node --check api/auth/google.js && node --check api/auth/session.js && node --check api/auth/logout.js",
     "test": "node --test tests/*.test.mjs"
   },
   "engines": {

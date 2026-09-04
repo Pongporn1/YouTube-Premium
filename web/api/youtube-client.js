@@ -23,7 +23,12 @@ export function normalizeQuery(value) {
 
 export function normalizePageToken(value) {
   const token = String(value || "").trim();
-  return /^[A-Za-z0-9_-]{1,200}$/.test(token) ? token : "";
+  return /^[A-Za-z0-9._~+/=-]{1,2048}$/.test(token) ? token : "";
+}
+
+export function normalizeVideoId(value) {
+  const id = String(value || "").trim();
+  return VIDEO_ID_PATTERN.test(id) ? id : "";
 }
 
 export function formatVideo(item) {
@@ -39,7 +44,8 @@ export function formatVideo(item) {
     publishedAt: String(snippet.publishedAt || ""),
     thumbnail: String(thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
     duration: parseDuration(item.contentDetails?.duration),
-    views: String(item.statistics?.viewCount || "0")
+    views: String(item.statistics?.viewCount || "0"),
+    comments: String(item.statistics?.commentCount || "0")
   };
 }
 
@@ -52,6 +58,32 @@ export function mergeChannelThumbnails(videos, channels) {
     ...video,
     channelThumbnail: thumbnails.get(video.channelId) || ""
   }));
+}
+
+function formatComment(comment) {
+  const snippet = comment?.snippet || {};
+  const authorChannelId = String(snippet.authorChannelId?.value || "").slice(0, 80);
+  return {
+    id: String(comment?.id || "").slice(0, 200),
+    author: String(snippet.authorDisplayName || "ผู้ใช้ YouTube").slice(0, 160),
+    authorImage: String(snippet.authorProfileImageUrl || "").slice(0, 1000),
+    authorChannelId,
+    text: String(snippet.textOriginal || snippet.textDisplay || "").slice(0, 10000),
+    likes: Math.max(0, Number(snippet.likeCount) || 0),
+    publishedAt: String(snippet.publishedAt || ""),
+    updatedAt: String(snippet.updatedAt || "")
+  };
+}
+
+export function formatCommentThread(thread) {
+  const topLevel = formatComment(thread?.snippet?.topLevelComment);
+  if (!topLevel.id || !topLevel.text) return null;
+  const replies = (thread?.replies?.comments || []).map(formatComment).filter((reply) => reply.id && reply.text);
+  return {
+    ...topLevel,
+    replyCount: Math.max(0, Number(thread?.snippet?.totalReplyCount) || 0),
+    replies
+  };
 }
 
 export async function addChannelThumbnails(videos) {
@@ -82,8 +114,14 @@ export async function youtubeRequest(resource, parameters) {
     const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      const error = new Error(response.status === 403 ? "โควต้า YouTube API ไม่พร้อมใช้งาน" : "YouTube API ตอบกลับไม่สำเร็จ");
-      error.statusCode = response.status === 429 ? 429 : 502;
+      const reason = String(data?.error?.errors?.[0]?.reason || "");
+      const error = new Error(reason === "commentsDisabled"
+        ? "วิดีโอนี้ปิดความคิดเห็นไว้"
+        : response.status === 403
+          ? "โควต้า YouTube API ไม่พร้อมใช้งาน"
+          : "YouTube API ตอบกลับไม่สำเร็จ");
+      error.statusCode = response.status === 429 ? 429 : reason === "commentsDisabled" ? 403 : 502;
+      error.reason = reason;
       throw error;
     }
     return data;
