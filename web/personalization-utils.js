@@ -42,6 +42,7 @@ export function formatAuthorizedVideo(item, channelThumbnails = new Map()) {
     title: String(snippet.title || `YouTube video ${id}`).slice(0, 300),
     channel: String(snippet.channelTitle || "YouTube").slice(0, 120),
     channelId,
+    categoryId: String(snippet.categoryId || "").slice(0, 10),
     channelThumbnail: String(channelThumbnails.get(channelId) || ""),
     publishedAt: String(snippet.publishedAt || ""),
     thumbnail: String(thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),

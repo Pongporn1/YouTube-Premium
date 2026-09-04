@@ -8,6 +8,12 @@ const HISTORY_KEY = "mytube-private-history-v2";
 const PERSONALIZATION_KEY = "mytube-private-personalization-v1";
 const LAST_HOME_ORDER_KEY = "mytube-private-home-order-v1";
 const MAX_HISTORY = 1000;
+const MAX_YOUTUBE_PAGES = 100;
+const MAX_SUBSCRIPTION_CHANNELS = 250;
+const MAX_PERSONALIZED_VIDEOS = 1000;
+const UPLOADS_PER_CHANNEL = 10;
+const PERSONALIZATION_REFRESH_MS = 15 * 60 * 1000;
+const PERSONALIZATION_WORKERS = 6;
 
 const elements = {
   body: document.body,
@@ -119,6 +125,7 @@ let importTarget = "history";
 let currentMenuVideo = null;
 let currentMenuTrigger = null;
 let toastTimer = null;
+let personalizationTimer = null;
 const mobileViewport = window.matchMedia("(max-width: 680px)");
 
 function safeStorageGet(key) {
@@ -183,13 +190,19 @@ function hasYouTubeConnection() {
   return Boolean(personalization.updatedAt || personalization.items.length || personalization.subscriptionCount || personalization.likedCount);
 }
 
+function matchesActiveCategory(video) {
+  if (!activeCategory) return true;
+  return String(video?.categoryId || "") === String(activeCategory);
+}
+
 function savePersonalization() {
   return safeStorageSet(PERSONALIZATION_KEY, JSON.stringify(personalization));
 }
 
 function personalizedHomeItems(trending) {
   const limit = Math.max(1, Math.min(24, trending.length || 24));
-  let mixed = mixPersonalizedFeed(personalization.items, trending, { history, limit });
+  const personal = personalization.items.filter(matchesActiveCategory);
+  let mixed = mixPersonalizedFeed(personal, trending.filter(matchesActiveCategory), { history, limit });
   const previous = safeStorageGet(LAST_HOME_ORDER_KEY);
   const order = mixed.map((video) => video.id).join(",");
   if (mixed.length > 1 && order === previous) mixed = [...mixed.slice(1), mixed[0]];
@@ -452,7 +465,7 @@ async function fetchVideos(url, { append = false } = {}) {
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     if (requestId !== requestSerial || requestView !== activeView) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
-    const filteredIncoming = activeCategory === "10" ? incoming.filter(isStrictMusicVideo) : incoming;
+    const filteredIncoming = incoming.filter(matchesActiveCategory).filter((video) => activeCategory !== "10" || isStrictMusicVideo(video));
     const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
     videos = append
       ? [...new Map([...videos, ...filteredIncoming].map((video) => [video.id, video])).values()]
@@ -472,6 +485,9 @@ async function fetchVideos(url, { append = false } = {}) {
     if (requestId === requestSerial) {
       loadingMore = false;
       elements.feedLoader.hidden = true;
+      if (!append && nextPageToken && ["home", "search"].includes(activeView)) {
+        window.setTimeout(() => { void prefetchFeedPages(); }, 0);
+      }
       elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
     }
   }
@@ -480,6 +496,16 @@ async function fetchVideos(url, { append = false } = {}) {
 function loadNextVideoPage() {
   if (!nextPageToken || loadingMore || !["home", "search"].includes(activeView)) return;
   fetchVideos(videoRequestUrl(nextPageToken), { append: true });
+}
+
+async function prefetchFeedPages(maxPages = 3) {
+  let loaded = 0;
+  while (nextPageToken && !loadingMore && loaded < maxPages && ["home", "search"].includes(activeView)) {
+    const tokenBefore = nextPageToken;
+    await fetchVideos(videoRequestUrl(tokenBefore), { append: true });
+    loaded += 1;
+    if (nextPageToken === tokenBefore) break;
+  }
 }
 
 function activateView(view) {
@@ -1032,6 +1058,7 @@ function unlockApp(user) {
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
   fetchVideos("/api/feed");
+  scheduleAutomaticPersonalizationSync();
 }
 
 async function performLogout(trigger) {
@@ -1072,7 +1099,7 @@ async function getGoogleClientId() {
   return googleClientId;
 }
 
-function requestYouTubeAccessToken() {
+function requestYouTubeAccessToken({ silent = false } = {}) {
   if (youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000) return Promise.resolve(youtubeAccessToken);
   return Promise.all([loadGoogleIdentity(), getGoogleClientId()]).then(([, clientId]) => new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
@@ -1090,7 +1117,7 @@ function requestYouTubeAccessToken() {
       },
       error_callback: () => reject(new Error("การเชื่อม YouTube ถูกยกเลิกหรือป๊อปอัปถูกบล็อก"))
     });
-    client.requestAccessToken({ prompt: hasYouTubeConnection() ? "" : "consent" });
+    client.requestAccessToken({ prompt: silent || hasYouTubeConnection() ? "" : "consent" });
   }));
 }
 
@@ -1126,11 +1153,41 @@ function shuffledCopy(items) {
   return copy;
 }
 
+function chunkItems(items, size = 50) {
+  const chunks = [];
+  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size));
+  return chunks;
+}
+
+async function mapWithConcurrency(items, workerCount, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const worker = async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index], index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(workerCount, items.length) }, worker));
+  return results;
+}
+
+async function loadChannelDetails(channelIds, part, token) {
+  if (!channelIds.length) return [];
+  const responses = await mapWithConcurrency(chunkItems(channelIds, 50), 4, (chunk) => authorizedYouTubeRequest("channels", {
+    part,
+    id: chunk.join(","),
+    maxResults: 50
+  }, token).catch(() => ({ items: [] })));
+  return responses.flatMap((response) => response?.items || []);
+}
+
 async function loadSubscriptions(token) {
   const items = [];
   let pageToken = "";
   let totalResults = 0;
-  for (let page = 0; page < 2; page += 1) {
+  const seenTokens = new Set();
+  for (let page = 0; page < MAX_YOUTUBE_PAGES && items.length < MAX_SUBSCRIPTION_CHANNELS; page += 1) {
     const data = await authorizedYouTubeRequest("subscriptions", {
       part: "snippet",
       mine: true,
@@ -1140,10 +1197,34 @@ async function loadSubscriptions(token) {
     }, token);
     items.push(...(data.items || []));
     totalResults = Math.max(totalResults, Number(data.pageInfo?.totalResults) || 0, items.length);
-    pageToken = String(data.nextPageToken || "");
-    if (!pageToken) break;
+    const nextToken = String(data.nextPageToken || "");
+    if (!nextToken || seenTokens.has(nextToken)) break;
+    seenTokens.add(nextToken);
+    pageToken = nextToken;
   }
-  return { items, totalResults };
+  return { items: items.slice(0, MAX_SUBSCRIPTION_CHANNELS), totalResults };
+}
+
+async function loadPlaylistVideoIds(playlistId, token) {
+  const ids = [];
+  let pageToken = "";
+  let totalResults = 0;
+  const seenTokens = new Set();
+  for (let page = 0; page < MAX_YOUTUBE_PAGES && ids.length < MAX_PERSONALIZED_VIDEOS; page += 1) {
+    const data = await authorizedYouTubeRequest("playlistItems", {
+      part: "contentDetails,snippet",
+      playlistId,
+      maxResults: 50,
+      pageToken
+    }, token);
+    ids.push(...playlistVideoIds(data));
+    totalResults = Math.max(totalResults, Number(data.pageInfo?.totalResults) || 0, ids.length);
+    const nextToken = String(data.nextPageToken || "");
+    if (!nextToken || seenTokens.has(nextToken)) break;
+    seenTokens.add(nextToken);
+    pageToken = nextToken;
+  }
+  return { ids: [...new Set(ids)].slice(0, MAX_PERSONALIZED_VIDEOS), totalResults };
 }
 
 function channelThumbnailMap(channels) {
@@ -1154,14 +1235,14 @@ function channelThumbnailMap(channels) {
 }
 
 async function loadAuthorizedVideoDetails(ids, token) {
-  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, 50);
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, MAX_PERSONALIZED_VIDEOS);
   if (uniqueIds.length === 0) return [];
-  const response = await authorizedYouTubeRequest("videos", {
+  const responses = await mapWithConcurrency(chunkItems(uniqueIds, 50), 4, (chunk) => authorizedYouTubeRequest("videos", {
     part: "snippet,contentDetails,statistics",
-    id: uniqueIds.join(","),
+    id: chunk.join(","),
     maxResults: 50
-  }, token);
-  return response.items || [];
+  }, token).catch(() => ({ items: [] })));
+  return responses.flatMap((response) => response?.items || []);
 }
 
 async function buildPersonalizationSnapshot(token) {
@@ -1173,39 +1254,37 @@ async function buildPersonalizationSnapshot(token) {
   const subscriptionIds = [...new Set(subscriptions.items
     .map((item) => String(item?.snippet?.resourceId?.channelId || ""))
     .filter(Boolean))];
-  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, 12);
+  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, MAX_SUBSCRIPTION_CHANNELS);
 
   const [likes, selectedChannels] = await Promise.all([
-    likesPlaylistId
-      ? authorizedYouTubeRequest("playlistItems", { part: "contentDetails,snippet", playlistId: likesPlaylistId, maxResults: 50 }, token)
-      : Promise.resolve({ items: [], pageInfo: {} }),
-    selectedSubscriptionIds.length
-      ? authorizedYouTubeRequest("channels", { part: "snippet,contentDetails", id: selectedSubscriptionIds.join(","), maxResults: 50 }, token)
-      : Promise.resolve({ items: [] })
+    likesPlaylistId ? loadPlaylistVideoIds(likesPlaylistId, token) : Promise.resolve({ ids: [], totalResults: 0 }),
+    loadChannelDetails(selectedSubscriptionIds, "snippet,contentDetails", token).then((items) => ({ items }))
   ]);
 
-  const likedIds = playlistVideoIds(likes);
+  const likedIds = likes.ids;
   const uploadPlaylists = (selectedChannels.items || [])
     .map((channel) => String(channel?.contentDetails?.relatedPlaylists?.uploads || ""))
     .filter(Boolean);
-  const uploadPages = await Promise.all(uploadPlaylists.map((playlistId) => authorizedYouTubeRequest("playlistItems", {
+  const uploadPages = await mapWithConcurrency(uploadPlaylists, PERSONALIZATION_WORKERS, (playlistId) => authorizedYouTubeRequest("playlistItems", {
     part: "contentDetails",
     playlistId,
-    maxResults: 5
-  }, token).catch(() => ({ items: [] }))));
-  const uploadIds = uploadPages.flatMap(playlistVideoIds);
+    maxResults: UPLOADS_PER_CHANNEL
+  }, token).catch(() => ({ items: [] })));
+  const uploadIds = [...new Set(uploadPages.flatMap(playlistVideoIds))].slice(0, MAX_PERSONALIZED_VIDEOS);
   if (likedIds.length === 0 && uploadIds.length === 0) throw new Error("ยังไม่พบวิดีโอที่ชอบหรือคลิปใหม่จากช่องที่ติดตาม");
 
+  const requestedIds = [...new Set([
+    ...likedIds.slice(0, MAX_PERSONALIZED_VIDEOS),
+    ...uploadIds.slice(0, MAX_PERSONALIZED_VIDEOS)
+  ])].slice(0, MAX_PERSONALIZED_VIDEOS);
   const [likedDetails, subscriptionDetails] = await Promise.all([
-    loadAuthorizedVideoDetails(likedIds, token),
-    loadAuthorizedVideoDetails(uploadIds, token)
+    loadAuthorizedVideoDetails(requestedIds.filter((id) => likedIds.includes(id)), token),
+    loadAuthorizedVideoDetails(requestedIds.filter((id) => uploadIds.includes(id)), token)
   ]);
   const allDetails = [...likedDetails, ...subscriptionDetails];
-  const videoChannelIds = [...new Set(allDetails.map((item) => String(item?.snippet?.channelId || "")).filter(Boolean))].slice(0, 50);
-  const channelDetails = videoChannelIds.length
-    ? await authorizedYouTubeRequest("channels", { part: "snippet", id: videoChannelIds.join(","), maxResults: 50 }, token)
-    : { items: [] };
-  const thumbnails = channelThumbnailMap(channelDetails.items);
+  const videoChannelIds = [...new Set(allDetails.map((item) => String(item?.snippet?.channelId || "")).filter(Boolean))];
+  const channelDetails = await loadChannelDetails(videoChannelIds, "snippet", token);
+  const thumbnails = channelThumbnailMap(channelDetails);
   const formatItems = (details, recommendationReason) => details.map((item) => {
     const video = formatAuthorizedVideo(item, thumbnails);
     return video ? { ...video, recommendationReason } : null;
@@ -1219,7 +1298,7 @@ async function buildPersonalizationSnapshot(token) {
     likedItems,
     subscriptionItems,
     subscriptionCount: subscriptions.totalResults,
-    likedCount: Math.max(likedIds.length, Number(likes.pageInfo?.totalResults) || 0),
+    likedCount: Math.max(likedIds.length, Number(likes.totalResults) || 0),
     updatedAt: new Date().toISOString()
   };
 }
@@ -1242,26 +1321,44 @@ function updatePersonalizationPanel(message = "", isError = false) {
   elements.clearPersonalization.hidden = !connected || personalizationBusy;
 }
 
-async function connectYouTubePersonalization() {
+function personalizationNeedsRefresh() {
+  const updatedAt = Date.parse(personalization.updatedAt);
+  return !Number.isFinite(updatedAt) || Date.now() - updatedAt >= PERSONALIZATION_REFRESH_MS;
+}
+
+function scheduleAutomaticPersonalizationSync() {
+  window.clearTimeout(personalizationTimer);
+  personalizationTimer = null;
+  if (!hasYouTubeConnection()) return;
+  const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
+  personalizationTimer = window.setTimeout(async () => {
+    personalizationTimer = null;
+    await connectYouTubePersonalization({ automatic: true });
+    scheduleAutomaticPersonalizationSync();
+  }, wait);
+}
+
+async function connectYouTubePersonalization({ automatic = false } = {}) {
   if (personalizationBusy) return;
   personalizationBusy = true;
   toggleAccountMenu(false);
-  updatePersonalizationPanel("เลือกบัญชีและอนุญาตสิทธิ์อ่าน YouTube ในหน้าต่าง Google");
+  updatePersonalizationPanel(automatic ? "กำลังอัปเดตฟีด YouTube อัตโนมัติ…" : "เลือกบัญชีและอนุญาตสิทธิ์อ่าน YouTube ในหน้าต่าง Google");
   let finalMessage = "";
   let failed = false;
   try {
-    const token = await requestYouTubeAccessToken();
+    const token = await requestYouTubeAccessToken({ silent: automatic });
     updatePersonalizationPanel("กำลังอ่านช่องที่ติดตามและวิดีโอที่คุณชอบ…");
     personalization = await buildPersonalizationSnapshot(token);
     if (!savePersonalization()) finalMessage = "สร้างฟีดแล้ว แต่เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูลไว้";
     if (activeView === "home") await fetchVideos(videoRequestUrl());
     else if (["subscriptions", "liked"].includes(activeView)) activateView(activeView);
   } catch (error) {
-    failed = true;
-    finalMessage = error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
+    failed = !automatic;
+    finalMessage = automatic ? "" : error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
   } finally {
     personalizationBusy = false;
     updatePersonalizationPanel(finalMessage, failed);
+    scheduleAutomaticPersonalizationSync();
   }
 }
 
@@ -1272,6 +1369,8 @@ function clearPersonalizedFeed() {
   safeStorageSet(LAST_HOME_ORDER_KEY, "");
   youtubeAccessToken = "";
   youtubeTokenExpiresAt = 0;
+  window.clearTimeout(personalizationTimer);
+  personalizationTimer = null;
   updatePersonalizationPanel("ล้างข้อมูลฟีดสำหรับคุณแล้ว");
   if (activeView === "home") fetchVideos(videoRequestUrl());
   else if (["subscriptions", "liked"].includes(activeView)) activateView(activeView);

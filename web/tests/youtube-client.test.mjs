@@ -18,7 +18,7 @@ test("formats YouTube duration and video payload", () => {
   assert.equal(parseDuration("PT1H2M9S"), "62:09");
   const video = formatVideo({
     id: "dQw4w9WgXcQ",
-    snippet: { title: "Example", channelTitle: "Channel", channelId: "channel-1", publishedAt: "2024-01-01T00:00:00Z", thumbnails: {} },
+    snippet: { title: "Example", channelTitle: "Channel", channelId: "channel-1", categoryId: "20", publishedAt: "2024-01-01T00:00:00Z", thumbnails: {} },
     contentDetails: { duration: "PT3M7S" },
     statistics: { viewCount: "1000", commentCount: "250" }
   });
@@ -26,6 +26,7 @@ test("formats YouTube duration and video payload", () => {
   assert.equal(video.views, "1000");
   assert.equal(video.comments, "250");
   assert.equal(video.channelId, "channel-1");
+  assert.equal(video.categoryId, "20");
   assert.match(video.thumbnail, /dQw4w9WgXcQ/);
 });
 
