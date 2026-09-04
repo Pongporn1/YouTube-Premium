@@ -1542,13 +1542,15 @@ elements.mobileSearchClose.addEventListener("click", () => {
   elements.searchInput.blur();
 });
 
-elements.chips.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-category]");
-  if (!button) return;
+function selectCategory(button) {
   activeCategory = button.dataset.category;
   [...elements.chips.querySelectorAll("[data-category]")].forEach((item) => item.classList.toggle("active", item === button));
   elements.title.textContent = activeCategory ? button.textContent : "กำลังมาแรงในไทย";
   fetchVideos(videoRequestUrl());
+}
+
+elements.chips.querySelectorAll("[data-category]").forEach((button) => {
+  button.addEventListener("click", () => selectCategory(button));
 });
 
 elements.grid.addEventListener("click", (event) => {
