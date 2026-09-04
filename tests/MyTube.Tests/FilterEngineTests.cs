@@ -56,6 +56,26 @@ public sealed class FilterEngineTests
         Assert.IsTrue(engine.Evaluate("https://other.test/tracking/event", "POST", "XmlHttpRequest").IsBlocked);
     }
 
+    [TestMethod]
+    public async Task KnownAdNetworkSubdomainsAreBlockedWithoutMatchingLookalikes()
+    {
+        var engine = await CreateEngineAsync(
+            "BLOCK DOMAIN doubleclick.net RESOURCE Script,Image,XmlHttpRequest,Other");
+
+        Assert.IsTrue(engine.Evaluate(
+            "https://securepubads.g.doubleclick.net/pagead/id",
+            "GET",
+            "XmlHttpRequest").IsBlocked);
+        Assert.IsFalse(engine.Evaluate(
+            "https://doubleclick.net.attacker.test/pagead/id",
+            "GET",
+            "XmlHttpRequest").IsBlocked);
+        Assert.IsFalse(engine.Evaluate(
+            "https://securepubads.g.doubleclick.net/video.mp4",
+            "GET",
+            "Media").IsBlocked);
+    }
+
     private static async Task<FilterEngine> CreateEngineAsync(params string[] rules)
     {
         var logDirectory = Path.Combine(Path.GetTempPath(), "MyTube.Tests", Guid.NewGuid().ToString("N"));

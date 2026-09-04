@@ -1,0 +1,25 @@
+import { formatVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
+
+export default async function handler(request, response) {
+  if (request.method !== "GET") {
+    response.setHeader("Allow", "GET");
+    return response.status(405).json({ error: "Method not allowed" });
+  }
+  try {
+    const data = await youtubeRequest("videos", {
+      part: "snippet,contentDetails,statistics",
+      chart: "mostPopular",
+      regionCode: "TH",
+      maxResults: 24,
+      videoCategoryId: normalizeCategory(request.query.category),
+      pageToken: normalizePageToken(request.query.pageToken)
+    });
+    response.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");
+    return response.status(200).json({
+      items: (data.items || []).map(formatVideo).filter(Boolean),
+      nextPageToken: String(data.nextPageToken || "")
+    });
+  } catch (error) {
+    return sendError(response, error);
+  }
+}

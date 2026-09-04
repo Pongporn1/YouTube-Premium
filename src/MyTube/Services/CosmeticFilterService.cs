@@ -10,6 +10,7 @@ namespace MyTube.Services;
 public sealed class CosmeticFilterService
 {
     private const string CssPlaceholder = "__MYTUBE_CSS_JSON__";
+    private const string PlayerAdBlockingPlaceholder = "__MYTUBE_BLOCK_PLAYER_ADS__";
 
     private readonly LoggingService _logger;
     private readonly string _baseCss;
@@ -33,12 +34,25 @@ public sealed class CosmeticFilterService
             return;
         }
 
-        var css = BuildCss(settings);
-        var script = _scriptTemplate.Replace(
-            CssPlaceholder,
-            JsonSerializer.Serialize(css),
-            StringComparison.Ordinal);
-        await webView.ExecuteScriptAsync(script);
+        await webView.ExecuteScriptAsync(CreateScript(settings));
+    }
+
+    public Task<string> RegisterForDocumentCreationAsync(CoreWebView2 webView, AppSettings settings)
+    {
+        return webView.AddScriptToExecuteOnDocumentCreatedAsync(CreateScript(settings));
+    }
+
+    internal string CreateScript(AppSettings settings)
+    {
+        return _scriptTemplate
+            .Replace(
+                CssPlaceholder,
+                JsonSerializer.Serialize(BuildCss(settings)),
+                StringComparison.Ordinal)
+            .Replace(
+                PlayerAdBlockingPlaceholder,
+                JsonSerializer.Serialize(true),
+                StringComparison.Ordinal);
     }
 
     private string BuildCss(AppSettings settings)
@@ -50,6 +64,7 @@ public sealed class CosmeticFilterService
         AddHideRule(css, settings.HideComments, YouTubeSelectors.Comments);
         AddHideRule(css, settings.HideMerch || settings.FocusMode, YouTubeSelectors.Merch);
         AddHideRule(css, settings.HidePromotions || settings.FocusMode, YouTubeSelectors.Promotions);
+        AddHideRule(css, true, YouTubeSelectors.PlayerAds);
         AddHideRule(css, settings.HidePopups, YouTubeSelectors.Popups);
         return css.ToString();
     }

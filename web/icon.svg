@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MyTube">
+  <rect width="512" height="512" rx="112" fill="#e83a2f"/>
+  <path d="M136 156c0-27 22-48 48-48h144c27 0 48 21 48 48v200c0 27-21 48-48 48H184c-26 0-48-21-48-48V156Z" fill="#0c0c0d"/>
+  <path d="m226 203 92 53-92 53V203Z" fill="#f5f0e6"/>
+  <circle cx="376" cy="136" r="28" fill="#f5f0e6"/>
+</svg>

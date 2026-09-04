@@ -17,6 +17,7 @@ public sealed class BrowserService : IDisposable
     private readonly IFilterEngine _filterEngine;
     private readonly AppSettings _settings;
     private WebView2? _webView;
+    private string? _documentStartFilterScriptId;
     private bool _authenticationFlowActive;
     private bool _disposed;
 
@@ -73,6 +74,7 @@ public sealed class BrowserService : IDisposable
             _logger.Error("Filter rules could not be initialized; network filtering will fail open.", exception);
         }
         ApplyBrowserSettings();
+        await RefreshDocumentStartFilterAsync();
         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
         webView.CoreWebView2.HistoryChanged += OnHistoryChanged;
         webView.CoreWebView2.NavigationStarting += OnNavigationStarting;
@@ -80,7 +82,8 @@ public sealed class BrowserService : IDisposable
         webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
         webView.CoreWebView2.AddWebResourceRequestedFilter(
             "*",
-            CoreWebView2WebResourceContext.All);
+            CoreWebView2WebResourceContext.All,
+            CoreWebView2WebResourceRequestSourceKinds.All);
         webView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
         webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
         webView.CoreWebView2.ProcessFailed += OnProcessFailed;
@@ -124,6 +127,7 @@ public sealed class BrowserService : IDisposable
     public async Task ApplySettingsAsync()
     {
         ApplyBrowserSettings();
+        await RefreshDocumentStartFilterAsync();
         await ApplyCosmeticFiltersAsync();
     }
 
@@ -300,6 +304,22 @@ public sealed class BrowserService : IDisposable
         }
     }
 
+    private async Task RefreshDocumentStartFilterAsync()
+    {
+        if (_webView?.CoreWebView2 is not { } coreWebView)
+        {
+            return;
+        }
+
+        if (_documentStartFilterScriptId is not null)
+        {
+            coreWebView.RemoveScriptToExecuteOnDocumentCreated(_documentStartFilterScriptId);
+        }
+
+        _documentStartFilterScriptId = await _cosmeticFilterService
+            .RegisterForDocumentCreationAsync(coreWebView, _settings);
+    }
+
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs e)
     {
         if (!_settings.EnableContentFiltering || !_settings.BlockKnownTrackers)
@@ -402,6 +422,13 @@ public sealed class BrowserService : IDisposable
         {
             try
             {
+                if (_documentStartFilterScriptId is not null)
+                {
+                    _webView.CoreWebView2.RemoveScriptToExecuteOnDocumentCreated(
+                        _documentStartFilterScriptId);
+                    _documentStartFilterScriptId = null;
+                }
+
                 _webView.CoreWebView2.HistoryChanged -= OnHistoryChanged;
                 _webView.CoreWebView2.NavigationStarting -= OnNavigationStarting;
                 _webView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;

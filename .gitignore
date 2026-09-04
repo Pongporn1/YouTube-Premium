@@ -9,6 +9,8 @@ installer/Output/
 *.nupkg
 TestResults/
 coverage/
+.vercel/
+.playwright-cli/
 
 # MyTube runtime data must remain outside source control.
 UserData/

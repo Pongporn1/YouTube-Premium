@@ -13,7 +13,7 @@ The MVP includes:
 - Back, Forward, Reload, Home, Settings, application fullscreen, and keyboard shortcuts
 - YouTube-only top-level navigation with an explicit external-browser prompt
 - JSON settings at `%APPDATA%\MyTube\settings.json`
-- YouTube-only cosmetic filtering and Focus Mode
+- YouTube-only cosmetic filtering, player-ad suppression, and Focus Mode
 - a precompiled local network-rule engine with allowlist precedence and fail-open media handling
 - download confirmation, offline retry UI, crash handling, and local security-conscious logging
 - a Manifest V3 fallback extension for Chrome, Brave, and Edge
@@ -99,7 +99,7 @@ BLOCK DOMAIN tracker.example.com RESOURCE Script,Image,XmlHttpRequest
 
 Basic `||domain^` and `@@||domain^` rules are also accepted. This is not a complete EasyList parser. Network filtering excludes WebView2 `Media` requests at runtime and fails open on errors, prioritizing playback stability. Remote filter updates are intentionally not implemented in the MVP; a future provider must fetch text rules only, never executable code.
 
-Cosmetic selectors are centralized in `YouTubeSelectors.cs`, and injection is refused on non-YouTube pages, including `accounts.google.com`.
+Cosmetic selectors are centralized in `YouTubeSelectors.cs`, and injection is refused on non-YouTube pages, including `accounts.google.com`. MyTube installs its filter at document creation time and always suppresses YouTube player ads by hiding the ad frame, muting and advancing only while the player reports an active ad, and activating the skip control when available. The promoted-content setting separately controls sponsored cards in the feed. Player suppression is deliberately scoped to YouTube's ad-state classes so normal video playback is restored immediately afterward. YouTube can change its player at any time, so live behavior must be rechecked after layout updates.
 
 ## Fallback extension
 

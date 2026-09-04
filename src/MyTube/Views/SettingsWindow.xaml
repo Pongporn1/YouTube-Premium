@@ -70,7 +70,7 @@
                                   IsChecked="{Binding Draft.HideComments}" />
                         <CheckBox Content="Hide merch and promotional UI"
                                   IsChecked="{Binding Draft.HideMerch}" />
-                        <CheckBox Content="Hide promoted content and sponsored cards"
+                        <CheckBox Content="Hide sponsored cards in feeds (player ads are always blocked)"
                                   IsChecked="{Binding Draft.HidePromotions}" />
                         <CheckBox Content="Hide popups"
                                   IsChecked="{Binding Draft.HidePopups}" />

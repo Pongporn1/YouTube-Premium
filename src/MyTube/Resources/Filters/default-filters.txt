@@ -13,3 +13,7 @@ BLOCK WILDCARD https://*.example.net/telemetry/*
 ! Conservative generic tracker examples. Media and WebSocket requests always fail open at runtime.
 BLOCK DOMAIN google-analytics.com RESOURCE Script,Image,XmlHttpRequest
 BLOCK DOMAIN googletagmanager.com RESOURCE Script
+BLOCK DOMAIN doubleclick.net RESOURCE Script,Image,XmlHttpRequest,Other
+BLOCK DOMAIN googlesyndication.com RESOURCE Script,Image,XmlHttpRequest,Other
+BLOCK DOMAIN googleadservices.com RESOURCE Script,Image,XmlHttpRequest,Other
+BLOCK DOMAIN googletagservices.com RESOURCE Script,Image,XmlHttpRequest,Other

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="description" content="MyTube Private — ค้นหาและดูวิดีโอ YouTube ในพื้นที่ส่วนตัวของคุณ">
+  <title>MyTube Private</title>
+  <link rel="icon" href="/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="round-button menu-toggle" id="menu-toggle" type="button" aria-label="เปิดหรือปิดเมนู">
+      <span></span><span></span><span></span>
+    </button>
+    <a class="brand" href="/" aria-label="MyTube หน้าหลัก">
+      <span class="brand-mark" aria-hidden="true"><span></span></span>
+      <strong>MyTube</strong><small>TH</small>
+    </a>
+
+    <form class="search-form" id="search-form" role="search">
+      <label class="sr-only" for="search-input">ค้นหาวิดีโอ</label>
+      <input id="search-input" type="search" autocomplete="off" maxlength="100" placeholder="ค้นหา">
+      <button type="submit" aria-label="ค้นหา"><span class="search-icon" aria-hidden="true"></span></button>
+    </form>
+
+    <button class="privacy-pill" id="privacy-button" type="button">
+      <span class="lock-dot" aria-hidden="true"></span>
+      <span>ส่วนตัว</span>
+    </button>
+    <div class="avatar" aria-label="โปรไฟล์ส่วนตัว">MY</div>
+  </header>
+
+  <aside class="sidebar" id="sidebar" aria-label="เมนูหลัก">
+    <nav>
+      <button class="nav-item active" type="button" data-view="home">
+        <span class="nav-icon">⌂</span><span>หน้าหลัก</span>
+      </button>
+      <button class="nav-item" type="button" data-view="favorites">
+        <span class="nav-icon">♡</span><span>รายการโปรด</span>
+      </button>
+      <button class="nav-item" type="button" data-view="history">
+        <span class="nav-icon">◷</span><span>ดูล่าสุด</span>
+      </button>
+    </nav>
+    <div class="sidebar-note">
+      <span class="lock-dot" aria-hidden="true"></span>
+      <p>รายการโปรดและประวัติอยู่ในเบราว์เซอร์นี้</p>
+    </div>
+  </aside>
+
+  <main class="content-shell">
+    <div class="chips" id="category-chips" aria-label="หมวดหมู่วิดีโอ">
+      <button class="chip active" type="button" data-category="">ทั้งหมด</button>
+      <button class="chip" type="button" data-category="10">เพลง</button>
+      <button class="chip" type="button" data-category="20">เกม</button>
+      <button class="chip" type="button" data-category="24">บันเทิง</button>
+      <button class="chip" type="button" data-category="25">ข่าวสาร</button>
+      <button class="chip" type="button" data-category="17">กีฬา</button>
+      <button class="chip" type="button" data-category="28">วิทยาศาสตร์และเทคโนโลยี</button>
+      <button class="chip" type="button" data-category="1">ภาพยนตร์</button>
+      <button class="chip" type="button" data-category="22">ผู้คนและบล็อก</button>
+    </div>
+
+    <section class="feed-section" aria-labelledby="feed-title">
+      <div class="feed-heading">
+        <div>
+          <p class="eyebrow" id="feed-eyebrow">MYTUBE • THAILAND</p>
+          <h1 id="feed-title">กำลังมาแรงในไทย</h1>
+        </div>
+        <button class="refresh-button" id="refresh-button" type="button" aria-label="โหลดรายการใหม่">↻ <span>รีเฟรช</span></button>
+      </div>
+      <p class="status-message" id="status-message" role="status" aria-live="polite">กำลังโหลดวิดีโอ…</p>
+      <div class="video-grid" id="video-grid" aria-busy="true"></div>
+      <div class="empty-state" id="empty-state" hidden>
+        <div class="empty-icon">⌕</div>
+        <h2>ยังไม่พบวิดีโอ</h2>
+        <p>ลองค้นหาด้วยคำอื่น หรือกลับไปดูวิดีโอกำลังมาแรง</p>
+        <button class="primary-button" id="back-home" type="button">กลับหน้าหลัก</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="เมนูมือถือ">
+    <button class="active" type="button" data-view="home"><span>⌂</span>หน้าหลัก</button>
+    <button type="button" data-view="favorites"><span>♡</span>รายการโปรด</button>
+    <button type="button" data-view="history"><span>◷</span>ดูล่าสุด</button>
+  </nav>
+
+  <dialog class="watch-dialog" id="watch-dialog">
+    <div class="watch-shell">
+      <button class="dialog-close" id="close-player" type="button" aria-label="ปิดวิดีโอ">×</button>
+      <div class="player-frame">
+        <iframe id="youtube-player" title="YouTube video player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+      </div>
+      <div class="watch-meta">
+        <div class="channel-avatar" id="player-channel-avatar">M</div>
+        <div class="watch-copy">
+          <h2 id="player-title"></h2>
+          <p><span id="player-channel"></span><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
+        </div>
+        <button class="watch-action" id="favorite-current" type="button">☆ <span>บันทึก</span></button>
+        <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
+      </div>
+      <p class="ad-note">ตัวเล่นนี้ใช้ YouTube Embed โฆษณาอาจแสดงตามการตัดสินใจของ YouTube</p>
+    </div>
+  </dialog>
+
+  <dialog class="privacy-dialog" id="privacy-dialog">
+    <button class="dialog-close" id="close-privacy" type="button" aria-label="ปิด">×</button>
+    <p class="eyebrow">PRIVATE BY DEFAULT</p>
+    <h2>เว็บส่วนตัวของคุณ</h2>
+    <ul>
+      <li>Vercel Authentication ป้องกันหน้าเว็บก่อนเข้าใช้งาน</li>
+      <li>API key อยู่ฝั่งเซิร์ฟเวอร์และไม่ถูกส่งเข้าเบราว์เซอร์</li>
+      <li>รายการโปรดและประวัติเก็บเฉพาะใน Local Storage เครื่องนี้</li>
+      <li>ไม่มีฐานข้อมูล MyTube และไม่มีระบบติดตามผู้ใช้</li>
+    </ul>
+    <button class="primary-button full" id="privacy-done" type="button">เข้าใจแล้ว</button>
+  </dialog>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

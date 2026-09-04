@@ -1,0 +1,17 @@
+{
+  "name": "MyTube Private",
+  "short_name": "MyTube",
+  "description": "A private, local-first YouTube viewing portal.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0c0c0d",
+  "theme_color": "#e83a2f",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

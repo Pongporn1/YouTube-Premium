@@ -51,6 +51,25 @@ public static class YouTubeSelectors
         "yt-lockup-view-model:has(a[href*='googleadservices.com'])",
     ];
 
+    public static readonly string[] PlayerAds =
+    [
+        "#player-ads",
+        "ytd-companion-slot-renderer",
+        "ytd-action-companion-ad-renderer",
+        "ytd-player-legacy-desktop-watch-ads-renderer",
+        ".video-ads.ytp-ad-module",
+        ".ytp-ad-overlay-container",
+        ".ytp-ad-player-overlay",
+        ".ytp-ad-player-overlay-layout",
+        ".ytp-ad-image-overlay",
+        ".ytp-ad-text-overlay",
+        ".ytp-ad-message-container",
+        ".ytp-ad-preview-container",
+        ".ytp-ad-progress-list",
+        ".html5-video-player.ad-showing .html5-video-container",
+        ".html5-video-player.ad-interrupting .html5-video-container",
+    ];
+
     public static readonly string[] Popups =
     [
         "ytd-mealbar-promo-renderer",
