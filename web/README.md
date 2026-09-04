@@ -29,3 +29,5 @@ vercel.cmd deploy . --target=preview --skip-domain -y
 ```
 
 Preview URLs redirect to the canonical production origin unless `?preview=1` is present. Production requires `GOOGLE_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`, `SESSION_SECRET`, and `YOUTUBE_API_KEY` in Vercel's Production environment.
+
+Google Cloud's Web OAuth client must authorize `https://mytube-private-web.vercel.app` as a JavaScript origin and `https://mytube-private-web.vercel.app/api/auth/google` as a redirect URI. The redirect URI lets iOS and installed mobile apps complete Sign in with Google without relying on a popup.

@@ -2,6 +2,7 @@
 .idea/
 **/bin/
 **/obj/
+**/node_modules/
 artifacts/
 installer/Output/
 *.user

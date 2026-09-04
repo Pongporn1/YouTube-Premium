@@ -1164,6 +1164,23 @@ async function handleGoogleCredential(result) {
   }
 }
 
+function shouldRedirectGoogleSignIn() {
+  const isAppleMobile = /iPad|iPhone|iPod/i.test(navigator.userAgent);
+  const isStandalone = window.matchMedia?.("(display-mode: standalone)")?.matches === true;
+  return location.protocol === "https:" && (isAppleMobile || isStandalone);
+}
+
+function consumeAuthError() {
+  const url = new URL(location.href);
+  const code = url.searchParams.get("auth_error");
+  if (!code) return "";
+  url.searchParams.delete("auth_error");
+  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  return code === "not_allowed"
+    ? "บัญชี Google นี้ไม่ได้รับอนุญาต"
+    : "ยืนยันบัญชี Google ไม่สำเร็จ กรุณาลองอีกครั้ง";
+}
+
 async function initializeAuth() {
   try {
     const sessionResponse = await fetch("/api/auth/session", { headers: { Accept: "application/json" } });
@@ -1177,11 +1194,17 @@ async function initializeAuth() {
     if (!configResponse.ok || !config.clientId) throw new Error("Google Sign-In ยังไม่ได้ตั้งค่าใน Vercel");
     googleClientId = String(config.clientId);
     await loadGoogleIdentity();
-    window.google.accounts.id.initialize({
+    const redirectSignIn = shouldRedirectGoogleSignIn();
+    window.google.accounts.id.initialize(redirectSignIn ? {
+      client_id: config.clientId,
+      ux_mode: "redirect",
+      login_uri: `${location.origin}/api/auth/google`
+    } : {
       client_id: config.clientId,
       callback: handleGoogleCredential,
       auto_select: true,
-      use_fedcm_for_prompt: true
+      use_fedcm_for_button: true,
+      button_auto_select: true
     });
     window.google.accounts.id.renderButton(elements.googleButton, {
       type: "standard",
@@ -1192,7 +1215,8 @@ async function initializeAuth() {
       logo_alignment: "left",
       width: Math.min(420, elements.googleButton.clientWidth || 420)
     });
-    setAuthMessage("เลือกบัญชี Google ที่ได้รับอนุญาต");
+    const authError = consumeAuthError();
+    setAuthMessage(authError || "เลือกบัญชี Google ที่ได้รับอนุญาต", Boolean(authError));
   } catch (error) {
     setAuthMessage(error.message || "เตรียม Google Sign-In ไม่สำเร็จ", true);
   }
