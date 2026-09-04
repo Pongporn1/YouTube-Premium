@@ -126,7 +126,6 @@ let currentMenuVideo = null;
 let currentMenuTrigger = null;
 let toastTimer = null;
 let personalizationTimer = null;
-let personalizationBootstrapAttempted = false;
 const mobileViewport = window.matchMedia("(max-width: 680px)");
 
 function safeStorageGet(key) {
@@ -1331,19 +1330,12 @@ function personalizationNeedsRefresh() {
 function scheduleAutomaticPersonalizationSync() {
   window.clearTimeout(personalizationTimer);
   personalizationTimer = null;
-  if (!hasYouTubeConnection()) return;
-
-  // Access tokens are intentionally kept in memory only. On a fresh page load,
-  // make one silent request to reuse the existing Google grant. A single
-  // guarded attempt avoids popup loops when the grant has expired or is absent.
-  if (!youtubeAccessToken) {
-    if (personalizationBootstrapAttempted) return;
-    personalizationBootstrapAttempted = true;
-  }
-
-  const wait = youtubeAccessToken && !personalizationNeedsRefresh()
-    ? PERSONALIZATION_REFRESH_MS
-    : 1200;
+  // Access tokens are intentionally kept in memory only. Google Identity
+  // Services requires a user gesture before opening its token popup, so a
+  // fresh page load must not try to silently re-authorize from a timer.
+  // Automatic refresh remains enabled after the user connects in this tab.
+  if (!hasYouTubeConnection() || !youtubeAccessToken) return;
+  const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
   personalizationTimer = window.setTimeout(async () => {
     personalizationTimer = null;
     await connectYouTubePersonalization({ automatic: true });
