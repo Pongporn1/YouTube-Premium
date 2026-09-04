@@ -1549,9 +1549,16 @@ function selectCategory(button) {
   fetchVideos(videoRequestUrl());
 }
 
-elements.chips.querySelectorAll("[data-category]").forEach((button) => {
-  button.addEventListener("click", () => selectCategory(button));
-});
+elements.chips.addEventListener("click", (event) => {
+  const target = event.target;
+  const button = target && typeof target.closest === "function"
+    ? target.closest("[data-category]")
+    : null;
+  if (!button || !elements.chips.contains(button)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  selectCategory(button);
+}, true);
 
 elements.grid.addEventListener("click", (event) => {
   const card = event.target.closest("[data-video-id]");
