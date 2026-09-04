@@ -1320,7 +1320,8 @@ function updatePersonalizationPanel(message = "", isError = false) {
   elements.connectYouTube.disabled = personalizationBusy;
   elements.connectYouTube.hidden = connected;
   elements.accountYouTube.disabled = personalizationBusy;
-  elements.clearPersonalization.hidden = !connected || personalizationBusy;
+  // Keep the panel informational; destructive clearing stays out of the feed banner.
+  elements.clearPersonalization.hidden = true;
 }
 
 function personalizationNeedsRefresh() {
