@@ -1329,7 +1329,11 @@ function personalizationNeedsRefresh() {
 function scheduleAutomaticPersonalizationSync() {
   window.clearTimeout(personalizationTimer);
   personalizationTimer = null;
-  if (!hasYouTubeConnection()) return;
+  // Access tokens are intentionally kept in memory only. Do not trigger an
+  // OAuth popup on a fresh page load just because a cached snapshot exists.
+  // Automatic refresh is enabled after the user has connected in this
+  // browser session and a usable token is available.
+  if (!hasYouTubeConnection() || !youtubeAccessToken) return;
   const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
   personalizationTimer = window.setTimeout(async () => {
     personalizationTimer = null;
