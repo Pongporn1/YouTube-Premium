@@ -28,7 +28,7 @@ export default async function handler(request, response) {
     };
     setSessionCookie(response, createSession(user));
     response.setHeader("Cache-Control", "private, no-store");
-    return response.status(200).json({ user: { name: user.name, picture: user.picture } });
+    return response.status(200).json({ user: { name: user.name, email: user.email, picture: user.picture } });
   } catch {
     return response.status(401).json({ error: "ยืนยันบัญชี Google ไม่สำเร็จ" });
   }

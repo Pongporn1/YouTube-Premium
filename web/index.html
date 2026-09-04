@@ -49,7 +49,35 @@
       <span class="lock-dot" aria-hidden="true"></span>
       <span>ส่วนตัว</span>
     </button>
-    <div class="avatar" aria-label="โปรไฟล์ส่วนตัว">MY</div>
+    <button class="avatar" id="account-button" type="button" aria-label="เปิดเมนูบัญชี" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false">
+      <span class="avatar-fallback" id="account-avatar-fallback" aria-hidden="true">MY</span>
+      <img class="account-avatar-image" id="account-avatar-image" alt="" referrerpolicy="no-referrer" hidden>
+    </button>
+    <section class="account-menu" id="account-menu" role="dialog" aria-labelledby="account-name" hidden>
+      <div class="account-profile">
+        <div class="account-avatar-large" aria-hidden="true">
+          <span id="account-menu-avatar-fallback">MY</span>
+          <img id="account-menu-avatar-image" alt="" referrerpolicy="no-referrer" hidden>
+        </div>
+        <div class="account-profile-copy">
+          <strong id="account-name">MyTube</strong>
+          <span id="account-email"></span>
+          <small><span class="lock-dot" aria-hidden="true"></span> บัญชีที่ได้รับอนุญาต</small>
+        </div>
+      </div>
+      <div class="account-actions">
+        <a class="account-action" href="https://myaccount.google.com/" target="_blank" rel="noopener noreferrer">
+          <span aria-hidden="true">G</span><span>จัดการบัญชี Google</span><span aria-hidden="true">↗</span>
+        </a>
+        <button class="account-action" id="account-privacy" type="button">
+          <span aria-hidden="true">◉</span><span>ความเป็นส่วนตัว MyTube</span><span aria-hidden="true">›</span>
+        </button>
+        <button class="account-action account-signout" id="account-logout" type="button">
+          <span aria-hidden="true">↪</span><span>ออกจากระบบ MyTube</span><span></span>
+        </button>
+      </div>
+      <p class="account-note">MyTube ใช้ Google เพื่อยืนยันตัวตนเท่านั้น และไม่สามารถดูรหัสผ่านของคุณได้</p>
+    </section>
   </header>
 
   <aside class="sidebar" id="sidebar" aria-label="เมนูหลัก">

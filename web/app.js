@@ -11,7 +11,16 @@ const elements = {
   authGate: document.getElementById("auth-gate"),
   googleButton: document.getElementById("google-button"),
   authMessage: document.getElementById("auth-message"),
-  avatar: document.querySelector(".avatar"),
+  accountButton: document.getElementById("account-button"),
+  accountMenu: document.getElementById("account-menu"),
+  accountAvatarFallback: document.getElementById("account-avatar-fallback"),
+  accountAvatarImage: document.getElementById("account-avatar-image"),
+  accountMenuAvatarFallback: document.getElementById("account-menu-avatar-fallback"),
+  accountMenuAvatarImage: document.getElementById("account-menu-avatar-image"),
+  accountName: document.getElementById("account-name"),
+  accountEmail: document.getElementById("account-email"),
+  accountPrivacy: document.getElementById("account-privacy"),
+  accountLogout: document.getElementById("account-logout"),
   logoutButton: document.getElementById("logout-button"),
   menuToggle: document.getElementById("menu-toggle"),
   searchForm: document.getElementById("search-form"),
@@ -460,13 +469,74 @@ function setAuthMessage(message, isError = false) {
   elements.authMessage.classList.toggle("error", isError);
 }
 
+function userInitials(name) {
+  return String(name || "MyTube").trim().split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MY";
+}
+
+function safeProfilePicture(value) {
+  try {
+    const url = new URL(String(value || ""));
+    return url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function setAccountAvatar(image, fallback, picture, initials) {
+  fallback.textContent = initials;
+  fallback.hidden = false;
+  image.hidden = true;
+  image.removeAttribute("src");
+  if (!picture) return;
+  image.onload = () => {
+    image.hidden = false;
+    fallback.hidden = true;
+  };
+  image.onerror = () => {
+    image.hidden = true;
+    fallback.hidden = false;
+    image.removeAttribute("src");
+  };
+  image.src = picture;
+}
+
+function toggleAccountMenu(force) {
+  const shouldOpen = typeof force === "boolean" ? force : elements.accountMenu.hidden;
+  elements.accountMenu.hidden = !shouldOpen;
+  elements.accountButton.setAttribute("aria-expanded", String(shouldOpen));
+}
+
 function unlockApp(user) {
   const label = String(user?.name || "MyTube").trim();
-  elements.avatar.textContent = label.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MY";
-  elements.avatar.title = label;
+  const initials = userInitials(label);
+  const picture = safeProfilePicture(user?.picture);
+  elements.accountName.textContent = label;
+  elements.accountEmail.textContent = String(user?.email || "").trim();
+  elements.accountEmail.hidden = !elements.accountEmail.textContent;
+  elements.accountButton.title = `บัญชี ${label}`;
+  elements.accountButton.setAttribute("aria-label", `เปิดเมนูบัญชี ${label}`);
+  setAccountAvatar(elements.accountAvatarImage, elements.accountAvatarFallback, picture, initials);
+  setAccountAvatar(elements.accountMenuAvatarImage, elements.accountMenuAvatarFallback, picture, initials);
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
   fetchVideos("/api/feed");
+}
+
+async function performLogout(trigger) {
+  const buttons = [elements.accountLogout, elements.logoutButton];
+  buttons.forEach((button) => { button.disabled = true; });
+  const originalText = trigger.textContent;
+  trigger.textContent = "กำลังออกจากระบบ…";
+  try {
+    const response = await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Sign out failed");
+    window.google?.accounts?.id?.disableAutoSelect();
+    location.reload();
+  } catch {
+    buttons.forEach((button) => { button.disabled = false; });
+    trigger.textContent = "ออกจากระบบไม่สำเร็จ — ลองอีกครั้ง";
+    window.setTimeout(() => { trigger.textContent = originalText; }, 2500);
+  }
 }
 
 function loadGoogleIdentity() {
@@ -531,6 +601,22 @@ async function initializeAuth() {
 }
 
 elements.menuToggle.addEventListener("click", () => elements.body.classList.toggle("sidebar-collapsed"));
+elements.accountButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleAccountMenu();
+});
+elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
+elements.accountPrivacy.addEventListener("click", () => {
+  toggleAccountMenu(false);
+  elements.privacyDialog.showModal();
+});
+elements.accountLogout.addEventListener("click", () => performLogout(elements.accountLogout));
+document.addEventListener("click", () => toggleAccountMenu(false));
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape" || elements.accountMenu.hidden) return;
+  toggleAccountMenu(false);
+  elements.accountButton.focus();
+});
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const query = elements.searchInput.value.trim();
@@ -614,10 +700,6 @@ elements.privacyButton.addEventListener("click", () => elements.privacyDialog.sh
 elements.closePrivacy.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDone.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDialog.addEventListener("click", (event) => { if (event.target === elements.privacyDialog) elements.privacyDialog.close(); });
-elements.logoutButton.addEventListener("click", async () => {
-  await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
-  window.google?.accounts?.id?.disableAutoSelect();
-  location.reload();
-});
+elements.logoutButton.addEventListener("click", () => performLogout(elements.logoutButton));
 
 initializeAuth();
