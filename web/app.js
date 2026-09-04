@@ -1,11 +1,18 @@
 import { canonicalWatchUrl, privacyEmbedUrl } from "./video-utils.js";
+import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 
-const FAVORITES_KEY = "mytube-private-favorites-v2";
+const WATCH_LATER_KEY = "mytube-private-watch-later-v3";
+const LEGACY_FAVORITES_KEY = "mytube-private-favorites-v2";
 const HISTORY_KEY = "mytube-private-history-v2";
-const MAX_HISTORY = 48;
+const MAX_HISTORY = 1000;
 
 const elements = {
   body: document.body,
+  authGate: document.getElementById("auth-gate"),
+  googleButton: document.getElementById("google-button"),
+  authMessage: document.getElementById("auth-message"),
+  avatar: document.querySelector(".avatar"),
+  logoutButton: document.getElementById("logout-button"),
   menuToggle: document.getElementById("menu-toggle"),
   searchForm: document.getElementById("search-form"),
   searchInput: document.getElementById("search-input"),
@@ -15,8 +22,15 @@ const elements = {
   title: document.getElementById("feed-title"),
   eyebrow: document.getElementById("feed-eyebrow"),
   empty: document.getElementById("empty-state"),
+  emptyTitle: document.getElementById("empty-title"),
+  emptyCopy: document.getElementById("empty-copy"),
   refresh: document.getElementById("refresh-button"),
   backHome: document.getElementById("back-home"),
+  historyTools: document.getElementById("history-tools"),
+  historySearch: document.getElementById("history-search"),
+  importLibrary: document.getElementById("import-library"),
+  clearLibrary: document.getElementById("clear-library"),
+  importMessage: document.getElementById("import-message"),
   navButtons: [...document.querySelectorAll("[data-view]")],
   watchDialog: document.getElementById("watch-dialog"),
   closePlayer: document.getElementById("close-player"),
@@ -30,10 +44,19 @@ const elements = {
   privacyButton: document.getElementById("privacy-button"),
   privacyDialog: document.getElementById("privacy-dialog"),
   closePrivacy: document.getElementById("close-privacy"),
-  privacyDone: document.getElementById("privacy-done")
+  privacyDone: document.getElementById("privacy-done"),
+  importDialog: document.getElementById("import-dialog"),
+  closeImport: document.getElementById("close-import"),
+  importTitle: document.getElementById("import-title"),
+  importText: document.getElementById("import-text"),
+  chooseImportFiles: document.getElementById("choose-import-files"),
+  libraryFiles: document.getElementById("library-files"),
+  applyImport: document.getElementById("apply-import"),
+  importDialogMessage: document.getElementById("import-dialog-message")
 };
 
-let favorites = loadJson(FAVORITES_KEY, []);
+let storageFailed = false;
+let watchLater = loadWatchLater();
 let history = loadJson(HISTORY_KEY, []);
 let videos = [];
 let currentVideo = null;
@@ -41,23 +64,53 @@ let activeCategory = "";
 let activeView = "home";
 let activeQuery = "";
 let requestController = null;
+let requestSerial = 0;
+let importTarget = "history";
+
+function safeStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    storageFailed = true;
+    return null;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    storageFailed = true;
+    return false;
+  }
+}
 
 function loadJson(key, fallback) {
   try {
-    const value = JSON.parse(localStorage.getItem(key) || "null");
+    const value = JSON.parse(safeStorageGet(key) || "null");
     return Array.isArray(value) ? value : fallback;
   } catch {
     return fallback;
   }
 }
 
-function saveLocal() {
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+function loadWatchLater() {
+  const current = loadJson(WATCH_LATER_KEY, []);
+  const legacy = loadJson(LEGACY_FAVORITES_KEY, []);
+  const migrated = mergeVideoCollections(current, legacy, { max: MAX_HISTORY });
+  safeStorageSet(WATCH_LATER_KEY, JSON.stringify(migrated));
+  return migrated;
 }
 
-function isFavorite(id) {
-  return favorites.some((video) => video.id === id);
+function saveLocal() {
+  const watchLaterSaved = safeStorageSet(WATCH_LATER_KEY, JSON.stringify(watchLater));
+  const historySaved = safeStorageSet(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+  return watchLaterSaved && historySaved;
+}
+
+function isInWatchLater(id) {
+  return watchLater.some((video) => video.id === id);
 }
 
 function setStatus(message = "", isError = false) {
@@ -152,55 +205,92 @@ function createVideoCard(video) {
   const stats = document.createElement("p");
   stats.textContent = `${formatViews(video.views)} • ${formatAge(video.publishedAt)}`;
   copy.append(title, channel, stats);
-  const favorite = document.createElement("button");
-  favorite.className = `favorite-button${isFavorite(video.id) ? " active" : ""}`;
-  favorite.type = "button";
-  favorite.dataset.action = "favorite";
-  favorite.textContent = isFavorite(video.id) ? "♥" : "♡";
-  favorite.setAttribute("aria-label", isFavorite(video.id) ? "นำออกจากรายการโปรด" : "เพิ่มรายการโปรด");
-  body.append(avatar, copy, favorite);
+  const watchLaterButton = document.createElement("button");
+  watchLaterButton.className = `favorite-button${isInWatchLater(video.id) ? " active" : ""}`;
+  watchLaterButton.type = "button";
+  watchLaterButton.dataset.action = "watch-later";
+  watchLaterButton.textContent = isInWatchLater(video.id) ? "▣" : "□";
+  watchLaterButton.setAttribute("aria-label", isInWatchLater(video.id) ? "นำออกจากดูภายหลัง" : "เพิ่มไปดูภายหลัง");
+  body.append(avatar, copy, watchLaterButton);
   article.append(thumbnailButton, body);
   return article;
 }
 
+function configureEmptyState() {
+  if (activeView === "watch-later") {
+    elements.emptyTitle.textContent = "ยังไม่มีรายการดูภายหลังใน MyTube";
+    elements.emptyCopy.textContent = "นำเข้ารายการ Watch Later เดิมจาก YouTube หรือกดปุ่ม □ บนวิดีโอเพื่อเก็บไว้ดูภายหลัง";
+    elements.backHome.textContent = "นำเข้าจาก YouTube";
+  } else if (activeView === "history") {
+    elements.emptyTitle.textContent = "ยังไม่มีประวัติใน MyTube";
+    elements.emptyCopy.textContent = "นำเข้าประวัติเดิมจาก YouTube หรือเปิดวิดีโอใน MyTube เพื่อเริ่มบันทึกประวัติ";
+    elements.backHome.textContent = "นำเข้าจาก YouTube";
+  } else {
+    elements.emptyTitle.textContent = "ยังไม่พบวิดีโอ";
+    elements.emptyCopy.textContent = "ลองค้นหาด้วยคำอื่น หรือกลับไปดูวิดีโอกำลังมาแรง";
+    elements.backHome.textContent = "กลับหน้าหลัก";
+  }
+}
+
 function render(items = videos) {
-  elements.grid.replaceChildren(...items.map(createVideoCard));
+  const query = activeView === "history" ? elements.historySearch.value.trim().toLocaleLowerCase("th") : "";
+  const visibleItems = query
+    ? items.filter((item) => `${item.title} ${item.channel}`.toLocaleLowerCase("th").includes(query))
+    : items;
+  elements.grid.replaceChildren(...visibleItems.map(createVideoCard));
   elements.grid.setAttribute("aria-busy", "false");
-  elements.empty.hidden = items.length > 0;
-  if (items.length > 0) setStatus(`${items.length} วิดีโอ`);
+  elements.empty.hidden = visibleItems.length > 0;
+  configureEmptyState();
+  setStatus(`${visibleItems.length} วิดีโอ`);
 }
 
 async function fetchVideos(url) {
   requestController?.abort();
-  requestController = new AbortController();
+  const controller = new AbortController();
+  const requestId = ++requestSerial;
+  const requestView = activeView;
+  requestController = controller;
   showSkeletons();
   setStatus("กำลังโหลดวิดีโอ…");
   try {
-    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: requestController.signal });
+    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
+    if (requestId !== requestSerial || requestView !== activeView) return;
     videos = Array.isArray(data.items) ? data.items : [];
     render();
   } catch (error) {
     if (error.name === "AbortError") return;
+    if (requestId !== requestSerial || requestView !== activeView) return;
     videos = [];
     render();
     setStatus(error.message || "โหลดรายการไม่สำเร็จ กรุณาลองใหม่", true);
+  } finally {
+    if (requestController === controller) requestController = null;
   }
 }
 
 function activateView(view) {
   activeView = view;
+  if (view === "watch-later" || view === "history") {
+    requestSerial += 1;
+    requestController?.abort();
+    requestController = null;
+  }
   elements.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
   elements.chips.hidden = view !== "home";
-  if (view === "favorites") {
-    elements.title.textContent = "รายการโปรดของคุณ";
-    elements.eyebrow.textContent = "LOCAL LIBRARY";
-    videos = [...favorites];
+  elements.historyTools.hidden = view !== "history" && view !== "watch-later";
+  elements.historySearch.closest("label").hidden = view !== "history";
+  elements.clearLibrary.textContent = view === "watch-later" ? "ล้างดูภายหลัง" : "ล้างประวัติ";
+  elements.importMessage.hidden = true;
+  if (view === "watch-later") {
+    elements.title.textContent = "ดูภายหลัง";
+    elements.eyebrow.textContent = "MYTUBE QUEUE";
+    videos = [...watchLater];
     render();
   } else if (view === "history") {
-    elements.title.textContent = "ดูล่าสุด";
-    elements.eyebrow.textContent = "LOCAL HISTORY";
+    elements.title.textContent = "ประวัติการดู";
+    elements.eyebrow.textContent = "PRIVATE • ON THIS BROWSER";
     videos = [...history];
     render();
   } else {
@@ -213,17 +303,18 @@ function activateView(view) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function toggleFavorite(video) {
-  if (isFavorite(video.id)) favorites = favorites.filter((item) => item.id !== video.id);
-  else favorites = [video, ...favorites.filter((item) => item.id !== video.id)];
-  saveLocal();
-  if (activeView === "favorites") videos = [...favorites];
+function toggleWatchLater(video) {
+  if (isInWatchLater(video.id)) watchLater = watchLater.filter((item) => item.id !== video.id);
+  else watchLater = [video, ...watchLater.filter((item) => item.id !== video.id)];
+  const saved = saveLocal();
+  if (activeView === "watch-later") videos = [...watchLater];
   render();
-  updatePlayerFavorite();
+  if (!saved) setStatus("บันทึกได้ชั่วคราว แต่เบราว์เซอร์ปิด Local Storage อยู่", true);
+  updatePlayerWatchLater();
 }
 
 function addHistory(video) {
-  history = [video, ...history.filter((item) => item.id !== video.id)].slice(0, MAX_HISTORY);
+  history = [{ ...video, watchedAt: new Date().toISOString() }, ...history.filter((item) => item.id !== video.id)].slice(0, MAX_HISTORY);
   saveLocal();
 }
 
@@ -237,7 +328,7 @@ function openVideo(video) {
   elements.playerAvatar.textContent = avatarText(video.channel);
   elements.playerAvatar.style.backgroundColor = avatarColor(video.channel);
   elements.openYouTube.href = canonicalWatchUrl(video.id);
-  updatePlayerFavorite();
+  updatePlayerWatchLater();
   elements.watchDialog.showModal();
 }
 
@@ -247,10 +338,196 @@ function closeVideo() {
   currentVideo = null;
 }
 
-function updatePlayerFavorite() {
-  const active = currentVideo && isFavorite(currentVideo.id);
+function updatePlayerWatchLater() {
+  const active = currentVideo && isInWatchLater(currentVideo.id);
   elements.favoriteCurrent.classList.toggle("active", Boolean(active));
-  elements.favoriteCurrent.firstChild.textContent = active ? "★ " : "☆ ";
+  elements.favoriteCurrent.firstChild.textContent = active ? "▣ " : "□ ";
+}
+
+function showImportMessage(message, isError = false) {
+  elements.importMessage.textContent = message;
+  elements.importMessage.classList.toggle("error", isError);
+  elements.importMessage.hidden = false;
+}
+
+function setImportDialogMessage(message = "", isError = false) {
+  elements.importDialogMessage.textContent = message;
+  elements.importDialogMessage.classList.toggle("error", isError);
+}
+
+function openImportDialog(target = activeView) {
+  importTarget = target === "watch-later" ? "watch-later" : "history";
+  elements.importTitle.textContent = importTarget === "watch-later" ? "นำเข้ารายการดูภายหลัง" : "นำเข้าประวัติ YouTube";
+  elements.importText.value = "";
+  elements.libraryFiles.value = "";
+  setImportDialogMessage("วางลิงก์หรือเลือกไฟล์ที่ต้องการนำเข้า");
+  elements.importDialog.showModal();
+}
+
+async function enrichImportedVideos(items) {
+  const needsMetadata = items.filter((item) => item.title === `YouTube video ${item.id}` || item.channel === "YouTube");
+  if (needsMetadata.length === 0) return items;
+
+  const metadata = new Map();
+  for (let index = 0; index < needsMetadata.length; index += 50) {
+    const ids = needsMetadata.slice(index, index + 50).map((item) => item.id).join(",");
+    try {
+      const response = await fetch(`/api/video?ids=${encodeURIComponent(ids)}`, { headers: { Accept: "application/json" } });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && Array.isArray(data.items)) data.items.forEach((item) => metadata.set(item.id, item));
+    } catch {
+      // The imported video ID and thumbnail are still usable when metadata lookup fails.
+    }
+  }
+
+  return items.map((item) => {
+    const details = metadata.get(item.id);
+    if (!details) return item;
+    return {
+      ...item,
+      title: item.title === `YouTube video ${item.id}` ? details.title : item.title,
+      channel: item.channel === "YouTube" ? details.channel : item.channel,
+      publishedAt: item.publishedAt || details.publishedAt,
+      thumbnail: details.thumbnail || item.thumbnail,
+      duration: item.duration || details.duration,
+      views: item.views === "0" ? details.views : item.views
+    };
+  });
+}
+
+function applyImportedVideos(items, target) {
+  if (target === "watch-later") {
+    watchLater = mergeVideoCollections(watchLater, items, { max: MAX_HISTORY });
+    if (activeView === "watch-later") videos = [...watchLater];
+  } else {
+    history = mergeVideoCollections(history, items, { history: true, max: MAX_HISTORY });
+    if (activeView === "history") videos = [...history];
+  }
+}
+
+async function finishImport(groups) {
+  const importedHistory = await enrichImportedVideos(groups.history);
+  const importedWatchLater = await enrichImportedVideos(groups.watchLater);
+  if (importedHistory.length === 0 && importedWatchLater.length === 0) {
+    setImportDialogMessage("ไม่พบลิงก์วิดีโอ YouTube ในข้อมูลนี้", true);
+    return;
+  }
+
+  applyImportedVideos(importedHistory, "history");
+  applyImportedVideos(importedWatchLater, "watch-later");
+  const saved = saveLocal();
+  if (activeView === "history") videos = [...history];
+  if (activeView === "watch-later") videos = [...watchLater];
+  render();
+  const counts = [
+    importedHistory.length ? `ประวัติ ${importedHistory.length}` : "",
+    importedWatchLater.length ? `ดูภายหลัง ${importedWatchLater.length}` : ""
+  ].filter(Boolean).join(" • ");
+  showImportMessage(`นำเข้าแล้ว ${counts}${saved ? " • เก็บในเบราว์เซอร์นี้" : " • บันทึกถาวรไม่ได้"}`, !saved);
+  elements.importDialog.close();
+}
+
+async function importTextPayload() {
+  const items = parseLibraryText(elements.importText.value, { target: importTarget });
+  const groups = { history: [], watchLater: [] };
+  groups[importTarget === "watch-later" ? "watchLater" : "history"] = items;
+  await finishImport(groups);
+}
+
+async function importLibraryFiles(files) {
+  const groups = { history: [], watchLater: [] };
+  let totalSize = 0;
+  for (const file of files) {
+    totalSize += file.size;
+    if (totalSize > 20 * 1024 * 1024) {
+      setImportDialogMessage("ไฟล์รวมใหญ่เกิน 20 MB", true);
+      return;
+    }
+    const name = file.name.toLowerCase();
+    const target = /(watch[\s_-]*later|ดูภายหลัง)/i.test(name)
+      ? "watch-later"
+      : /(watch[\s_-]*history|history|ประวัติ)/i.test(name)
+        ? "history"
+        : importTarget;
+    const items = parseLibraryText(await file.text(), { filename: file.name, target });
+    groups[target === "watch-later" ? "watchLater" : "history"].push(...items);
+  }
+  await finishImport(groups);
+}
+
+function setAuthMessage(message, isError = false) {
+  elements.authMessage.textContent = message;
+  elements.authMessage.classList.toggle("error", isError);
+}
+
+function unlockApp(user) {
+  const label = String(user?.name || "MyTube").trim();
+  elements.avatar.textContent = label.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "MY";
+  elements.avatar.title = label;
+  elements.authGate.hidden = true;
+  elements.body.classList.remove("auth-pending");
+  fetchVideos("/api/feed");
+}
+
+function loadGoogleIdentity() {
+  if (window.google?.accounts?.id) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client?hl=th";
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Google Identity unavailable"));
+    document.head.append(script);
+  });
+}
+
+async function handleGoogleCredential(result) {
+  setAuthMessage("กำลังยืนยันบัญชี Google…");
+  try {
+    const response = await fetch("/api/auth/google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ credential: result.credential })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "เข้าสู่ระบบไม่สำเร็จ");
+    unlockApp(data.user);
+  } catch (error) {
+    setAuthMessage(error.message || "เข้าสู่ระบบไม่สำเร็จ", true);
+  }
+}
+
+async function initializeAuth() {
+  try {
+    const sessionResponse = await fetch("/api/auth/session", { headers: { Accept: "application/json" } });
+    const session = await sessionResponse.json().catch(() => ({}));
+    if (session.authenticated) {
+      unlockApp(session.user);
+      return;
+    }
+    const configResponse = await fetch("/api/auth/config", { headers: { Accept: "application/json" } });
+    const config = await configResponse.json().catch(() => ({}));
+    if (!configResponse.ok || !config.clientId) throw new Error("Google Sign-In ยังไม่ได้ตั้งค่าใน Vercel");
+    await loadGoogleIdentity();
+    window.google.accounts.id.initialize({
+      client_id: config.clientId,
+      callback: handleGoogleCredential,
+      auto_select: true,
+      use_fedcm_for_prompt: true
+    });
+    window.google.accounts.id.renderButton(elements.googleButton, {
+      type: "standard",
+      theme: "filled_black",
+      size: "large",
+      text: "continue_with",
+      shape: "pill",
+      logo_alignment: "left",
+      width: Math.min(420, elements.googleButton.clientWidth || 420)
+    });
+    setAuthMessage("เลือกบัญชี Google ที่ได้รับอนุญาต");
+  } catch (error) {
+    setAuthMessage(error.message || "เตรียม Google Sign-In ไม่สำเร็จ", true);
+  }
 }
 
 elements.menuToggle.addEventListener("click", () => elements.body.classList.toggle("sidebar-collapsed"));
@@ -262,6 +539,8 @@ elements.searchForm.addEventListener("submit", (event) => {
   activeQuery = query;
   elements.navButtons.forEach((button) => button.classList.remove("active"));
   elements.chips.hidden = true;
+  elements.historyTools.hidden = true;
+  elements.importMessage.hidden = true;
   elements.title.textContent = `ผลค้นหา “${query}”`;
   elements.eyebrow.textContent = "SEARCH RESULTS";
   fetchVideos(`/api/search?q=${encodeURIComponent(query)}`);
@@ -283,7 +562,7 @@ elements.grid.addEventListener("click", (event) => {
   const video = videos.find((item) => item.id === card.dataset.videoId);
   if (!video) return;
   if (action.dataset.action === "play") openVideo(video);
-  if (action.dataset.action === "favorite") toggleFavorite(video);
+  if (action.dataset.action === "watch-later") toggleWatchLater(video);
 });
 
 elements.refresh.addEventListener("click", () => {
@@ -291,14 +570,54 @@ elements.refresh.addEventListener("click", () => {
   else if (activeView === "home") fetchVideos(`/api/feed?category=${encodeURIComponent(activeCategory)}`);
   else render();
 });
-elements.backHome.addEventListener("click", () => activateView("home"));
+elements.backHome.addEventListener("click", () => {
+  if (activeView === "history" || activeView === "watch-later") openImportDialog(activeView);
+  else activateView("home");
+});
 elements.navButtons.forEach((button) => button.addEventListener("click", () => activateView(button.dataset.view)));
+elements.historySearch.addEventListener("input", () => render());
+elements.importLibrary.addEventListener("click", () => openImportDialog(activeView));
+elements.clearLibrary.addEventListener("click", () => {
+  const isWatchLater = activeView === "watch-later";
+  const collection = isWatchLater ? watchLater : history;
+  const label = isWatchLater ? "รายการดูภายหลัง" : "ประวัติ MyTube";
+  if (collection.length === 0 || !window.confirm(`ล้าง${label}ทั้งหมดในเบราว์เซอร์นี้หรือไม่?`)) return;
+  if (isWatchLater) watchLater = [];
+  else history = [];
+  videos = [];
+  const saved = saveLocal();
+  render();
+  showImportMessage(saved ? `ล้าง${label}แล้ว` : `ล้างชั่วคราว แต่บันทึกถาวรไม่ได้`, !saved);
+});
+elements.closeImport.addEventListener("click", () => elements.importDialog.close());
+elements.importDialog.addEventListener("click", (event) => { if (event.target === elements.importDialog) elements.importDialog.close(); });
+elements.chooseImportFiles.addEventListener("click", () => elements.libraryFiles.click());
+elements.libraryFiles.addEventListener("change", async () => {
+  try {
+    await importLibraryFiles([...elements.libraryFiles.files]);
+  } catch {
+    setImportDialogMessage("อ่านไฟล์ไม่ได้ กรุณาเลือก JSON หรือ CSV จาก Google Takeout", true);
+  }
+});
+elements.applyImport.addEventListener("click", async () => {
+  setImportDialogMessage("กำลังนำเข้า…");
+  try {
+    await importTextPayload();
+  } catch {
+    setImportDialogMessage("นำเข้าไม่สำเร็จ กรุณาตรวจลิงก์หรือไฟล์", true);
+  }
+});
 elements.closePlayer.addEventListener("click", closeVideo);
 elements.watchDialog.addEventListener("click", (event) => { if (event.target === elements.watchDialog) closeVideo(); });
-elements.favoriteCurrent.addEventListener("click", () => { if (currentVideo) toggleFavorite(currentVideo); });
+elements.favoriteCurrent.addEventListener("click", () => { if (currentVideo) toggleWatchLater(currentVideo); });
 elements.privacyButton.addEventListener("click", () => elements.privacyDialog.showModal());
 elements.closePrivacy.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDone.addEventListener("click", () => elements.privacyDialog.close());
 elements.privacyDialog.addEventListener("click", (event) => { if (event.target === elements.privacyDialog) elements.privacyDialog.close(); });
+elements.logoutButton.addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
+  window.google?.accounts?.id?.disableAutoSelect();
+  location.reload();
+});
 
-fetchVideos("/api/feed");
+initializeAuth();

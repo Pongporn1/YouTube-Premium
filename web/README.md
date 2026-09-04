@@ -4,9 +4,12 @@ A mobile-responsive, local-first YouTube viewing portal for Vercel. The home scr
 
 ## Privacy model
 
-- Protect the Preview deployment with Vercel Authentication.
-- Viewing history and favorites use browser Local Storage only.
-- The app has no database, analytics, Google sign-in, or MyTube account.
+- Production access is gated by Google Sign-In and an allowed-email check on the server.
+- Google Sign-In authenticates the visitor only; it does not grant access to YouTube account data.
+- MyTube history and Watch Later use Local Storage on the canonical production origin only.
+- Existing YouTube history and Watch Later data can be imported from pasted links or Google Takeout JSON/CSV files.
+- YouTube Data API does not permit apps to retrieve Watch History or Watch Later items directly.
+- The app has no database or analytics, and imported library data is not uploaded to MyTube's server.
 - Trending and search data comes from YouTube Data API v3 through server-only endpoints.
 - `YOUTUBE_API_KEY` must be a Vercel Secret and should be restricted to YouTube Data API v3.
 - Search runs only after form submission to avoid unnecessary quota usage.
@@ -25,4 +28,4 @@ npm.cmd test
 vercel.cmd deploy . --target=preview --skip-domain -y
 ```
 
-Do not deploy this portal as an unprotected production site if it is intended for personal use. Vercel Authentication with Standard Protection is available for Preview deployments on Hobby accounts.
+Preview URLs redirect to the canonical production origin unless `?preview=1` is present. Production requires `GOOGLE_CLIENT_ID`, `ALLOWED_GOOGLE_EMAIL`, `SESSION_SECRET`, and `YOUTUBE_API_KEY` in Vercel's Production environment.

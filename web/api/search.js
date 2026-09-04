@@ -1,10 +1,12 @@
 import { formatVideo, normalizePageToken, normalizeQuery, sendError, youtubeRequest } from "./youtube-client.js";
+import { requireSession } from "./auth/session-core.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
+  if (!requireSession(request, response)) return;
   const query = normalizeQuery(request.query.q);
   if (!query) return response.status(400).json({ error: "กรุณาพิมพ์คำค้นหา" });
   try {

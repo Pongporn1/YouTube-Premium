@@ -1,10 +1,12 @@
 import { formatVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
+import { requireSession } from "./auth/session-core.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
+  if (!requireSession(request, response)) return;
   try {
     const data = await youtubeRequest("videos", {
       part: "snippet,contentDetails,statistics",

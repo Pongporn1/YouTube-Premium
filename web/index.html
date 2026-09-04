@@ -6,11 +6,30 @@
   <meta name="theme-color" content="#0f0f0f">
   <meta name="description" content="MyTube Private — ค้นหาและดูวิดีโอ YouTube ในพื้นที่ส่วนตัวของคุณ">
   <title>MyTube Private</title>
+  <script>
+    if (location.protocol === "https:" && location.hostname.endsWith(".vercel.app") && location.hostname !== "mytube-private-web.vercel.app" && !new URLSearchParams(location.search).has("preview")) {
+      location.replace(`https://mytube-private-web.vercel.app${location.pathname}${location.search}${location.hash}`);
+    }
+  </script>
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="auth-pending">
+  <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <strong>MyTube</strong>
+      </div>
+      <p class="eyebrow">PRIVATE SCREEN • ONE ACCOUNT</p>
+      <h1 id="auth-title">พื้นที่ดูวิดีโอ<br>ของคุณคนเดียว</h1>
+      <p class="auth-lead">เข้าสู่ระบบด้วยบัญชี Google ที่อนุญาต เพื่อเปิดพื้นที่ส่วนตัวและข้อมูล MyTube บนเบราว์เซอร์นี้</p>
+      <div class="google-button" id="google-button"></div>
+      <p class="auth-message" id="auth-message" role="status" aria-live="polite">กำลังตรวจสอบการเข้าสู่ระบบ…</p>
+      <p class="auth-footnote">Google Sign-In ใช้ยืนยันตัวตนเท่านั้น ไม่ได้ให้สิทธิ์อ่านรหัสผ่าน ประวัติ หรือ Watch Later ของ YouTube</p>
+    </div>
+  </section>
   <header class="topbar">
     <button class="round-button menu-toggle" id="menu-toggle" type="button" aria-label="เปิดหรือปิดเมนู">
       <span></span><span></span><span></span>
@@ -38,16 +57,16 @@
       <button class="nav-item active" type="button" data-view="home">
         <span class="nav-icon">⌂</span><span>หน้าหลัก</span>
       </button>
-      <button class="nav-item" type="button" data-view="favorites">
-        <span class="nav-icon">♡</span><span>รายการโปรด</span>
+      <button class="nav-item" type="button" data-view="watch-later">
+        <span class="nav-icon">▣</span><span>ดูภายหลัง</span>
       </button>
       <button class="nav-item" type="button" data-view="history">
-        <span class="nav-icon">◷</span><span>ดูล่าสุด</span>
+        <span class="nav-icon">◷</span><span>ประวัติการดู</span>
       </button>
     </nav>
     <div class="sidebar-note">
       <span class="lock-dot" aria-hidden="true"></span>
-      <p>รายการโปรดและประวัติอยู่ในเบราว์เซอร์นี้</p>
+      <p>ข้อมูลอยู่ในโดเมนนี้ และนำเข้าจาก YouTube ได้</p>
     </div>
   </aside>
 
@@ -72,12 +91,21 @@
         </div>
         <button class="refresh-button" id="refresh-button" type="button" aria-label="โหลดรายการใหม่">↻ <span>รีเฟรช</span></button>
       </div>
+      <div class="history-tools" id="history-tools" hidden>
+        <label class="history-search" for="history-search">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input id="history-search" type="search" autocomplete="off" placeholder="ค้นหาประวัติการดู">
+        </label>
+        <button class="tool-button" id="import-library" type="button">⇧ นำเข้าจาก YouTube</button>
+        <button class="tool-button danger" id="clear-library" type="button">ล้างรายการ</button>
+      </div>
+      <p class="import-message" id="import-message" hidden aria-live="polite"></p>
       <p class="status-message" id="status-message" role="status" aria-live="polite">กำลังโหลดวิดีโอ…</p>
       <div class="video-grid" id="video-grid" aria-busy="true"></div>
       <div class="empty-state" id="empty-state" hidden>
         <div class="empty-icon">⌕</div>
-        <h2>ยังไม่พบวิดีโอ</h2>
-        <p>ลองค้นหาด้วยคำอื่น หรือกลับไปดูวิดีโอกำลังมาแรง</p>
+        <h2 id="empty-title">ยังไม่พบวิดีโอ</h2>
+        <p id="empty-copy">ลองค้นหาด้วยคำอื่น หรือกลับไปดูวิดีโอกำลังมาแรง</p>
         <button class="primary-button" id="back-home" type="button">กลับหน้าหลัก</button>
       </div>
     </section>
@@ -85,8 +113,8 @@
 
   <nav class="bottom-nav" aria-label="เมนูมือถือ">
     <button class="active" type="button" data-view="home"><span>⌂</span>หน้าหลัก</button>
-    <button type="button" data-view="favorites"><span>♡</span>รายการโปรด</button>
-    <button type="button" data-view="history"><span>◷</span>ดูล่าสุด</button>
+    <button type="button" data-view="watch-later"><span>▣</span>ดูภายหลัง</button>
+    <button type="button" data-view="history"><span>◷</span>ประวัติ</button>
   </nav>
 
   <dialog class="watch-dialog" id="watch-dialog">
@@ -103,11 +131,27 @@
           <h2 id="player-title"></h2>
           <p><span id="player-channel"></span><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
         </div>
-        <button class="watch-action" id="favorite-current" type="button">☆ <span>บันทึก</span></button>
+        <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
         <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
       </div>
       <p class="ad-note">ตัวเล่นนี้ใช้ YouTube Embed โฆษณาอาจแสดงตามการตัดสินใจของ YouTube</p>
     </div>
+  </dialog>
+
+  <dialog class="import-dialog" id="import-dialog">
+    <button class="dialog-close" id="close-import" type="button" aria-label="ปิด">×</button>
+    <p class="eyebrow">IMPORT YOUR YOUTUBE DATA</p>
+    <h2 id="import-title">นำเข้าข้อมูล YouTube</h2>
+    <p class="import-help">YouTube API ไม่อนุญาตให้เว็บอ่าน History หรือ Watch Later โดยตรง วางลิงก์วิดีโอทีละบรรทัด หรือเลือกไฟล์จาก Google Takeout ข้อมูลจะประมวลผลในเบราว์เซอร์นี้</p>
+    <label class="import-label" for="import-text">ลิงก์หรือข้อมูล JSON</label>
+    <textarea id="import-text" rows="8" spellcheck="false" placeholder="https://www.youtube.com/watch?v=...&#10;https://youtu.be/..."></textarea>
+    <div class="import-actions">
+      <button class="tool-button" id="choose-import-files" type="button">เลือกไฟล์ Takeout</button>
+      <input id="library-files" type="file" accept="application/json,text/csv,.json,.csv" multiple hidden>
+      <a class="tool-button link-button" href="https://takeout.google.com/settings/takeout/custom/youtube" target="_blank" rel="noopener noreferrer">เปิด Google Takeout ↗</a>
+      <button class="primary-button" id="apply-import" type="button">นำเข้า</button>
+    </div>
+    <p class="import-dialog-message" id="import-dialog-message" role="status" aria-live="polite"></p>
   </dialog>
 
   <dialog class="privacy-dialog" id="privacy-dialog">
@@ -115,11 +159,13 @@
     <p class="eyebrow">PRIVATE BY DEFAULT</p>
     <h2>เว็บส่วนตัวของคุณ</h2>
     <ul>
-      <li>Vercel Authentication ป้องกันหน้าเว็บก่อนเข้าใช้งาน</li>
+      <li>Google Sign-In จำกัดหน้าเว็บไว้สำหรับบัญชีที่อนุญาต</li>
       <li>API key อยู่ฝั่งเซิร์ฟเวอร์และไม่ถูกส่งเข้าเบราว์เซอร์</li>
-      <li>รายการโปรดและประวัติเก็บเฉพาะใน Local Storage เครื่องนี้</li>
+      <li>ดูภายหลังและประวัติ MyTube เก็บใน Local Storage ของโดเมนนี้</li>
+      <li>ข้อมูล YouTube เดิมต้องนำเข้าผ่านลิงก์หรือ Google Takeout</li>
       <li>ไม่มีฐานข้อมูล MyTube และไม่มีระบบติดตามผู้ใช้</li>
     </ul>
+    <button class="text-logout" id="logout-button" type="button">ออกจากระบบ Google</button>
     <button class="primary-button full" id="privacy-done" type="button">เข้าใจแล้ว</button>
   </dialog>
 
