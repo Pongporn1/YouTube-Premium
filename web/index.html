@@ -83,6 +83,12 @@
         <button class="account-action" type="button" data-view="watch-later">
           <span aria-hidden="true">▣</span><span>วิดีโอดูภายหลัง</span><span aria-hidden="true">›</span>
         </button>
+        <button class="account-action" type="button" data-view="subscriptions">
+          <span aria-hidden="true">▤</span><span>ช่องที่ติดตามจาก YouTube</span><span aria-hidden="true">›</span>
+        </button>
+        <button class="account-action" type="button" data-view="liked">
+          <span aria-hidden="true">♥</span><span>วิดีโอที่ชอบจาก YouTube</span><span aria-hidden="true">›</span>
+        </button>
         <button class="account-action" id="account-youtube" type="button">
           <span aria-hidden="true">▶</span><span>เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว</span><span aria-hidden="true">›</span>
         </button>
@@ -103,9 +109,9 @@
       <a class="nav-item" href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 2 7 4-3 2 3 2-10 5 3 2-3 2-4-2 3-2-3-2 10-5-3-2 3-2Zm1 8v5l4-2.5-4-2.5Z"/></svg><span>Shorts</span>
       </a>
-      <a class="nav-item" href="https://www.youtube.com/feed/subscriptions" target="_blank" rel="noopener noreferrer">
+      <button class="nav-item" type="button" data-view="subscriptions">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v2H6V3ZM4 7h16v2H4V7Zm-1 4h18v10H3V11Zm2 2v6h14v-6H5Zm5 1 5 2-5 2v-4Z"/></svg><span>การติดตาม</span>
-      </a>
+      </button>
     </nav>
     <div class="sidebar-divider"></div>
     <nav class="sidebar-section library-nav">
@@ -119,9 +125,9 @@
       <button class="nav-item" type="button" data-view="watch-later">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-9 9 9 9 0 0 1 9-9Zm0 2a7 7 0 1 0 7 7 7 7 0 0 0-7-7Zm1 2v4.6l3.5 2.1-1 1.7-4.5-2.7V7h2Z"/></svg><span>ดูภายหลัง</span>
       </button>
-      <a class="nav-item" href="https://www.youtube.com/playlist?list=LL" target="_blank" rel="noopener noreferrer">
+      <button class="nav-item" type="button" data-view="liked">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5V9h4v12Zm2 0V9l4-6 2 1v5h4v3l-3 9h-7Z"/></svg><span>วิดีโอที่ชอบ</span>
-      </a>
+      </button>
     </nav>
     <div class="sidebar-divider"></div>
     <button class="nav-item" id="privacy-button" type="button">
@@ -193,7 +199,7 @@
     <button class="active" type="button" data-view="home"><span>⌂</span>หน้าหลัก</button>
     <a href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer"><span>ϟ</span>Shorts</a>
     <a class="mobile-create" href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer" aria-label="สร้างวิดีโอบน YouTube"><span>＋</span></a>
-    <button type="button" data-view="watch-later"><span>◷</span>ดูภายหลัง</button>
+    <button type="button" data-view="subscriptions"><span>▤</span>การติดตาม</button>
     <button id="mobile-account-button" type="button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false"><span class="mobile-avatar" id="mobile-avatar-fallback">MY</span>คุณ</button>
   </nav>
 
@@ -263,7 +269,7 @@
     <h2>เว็บส่วนตัวของคุณ</h2>
     <ul>
       <li>Google Sign-In จำกัดหน้าเว็บไว้สำหรับบัญชีที่อนุญาต</li>
-      <li>ฟีดสำหรับคุณใช้สิทธิ์ YouTube แบบอ่านอย่างเดียว และไม่เก็บ access token ไว้ถาวร</li>
+      <li>ฟีด การติดตาม และวิดีโอที่ชอบใช้สิทธิ์ YouTube แบบอ่านอย่างเดียว โดยไม่เก็บ access token ไว้ถาวร</li>
       <li>API key อยู่ฝั่งเซิร์ฟเวอร์และไม่ถูกส่งเข้าเบราว์เซอร์</li>
       <li>ดูภายหลังและประวัติ MyTube เก็บใน Local Storage ของโดเมนนี้</li>
       <li>ข้อมูล YouTube เดิมต้องนำเข้าผ่านลิงก์หรือ Google Takeout</li>

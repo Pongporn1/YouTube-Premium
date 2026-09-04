@@ -146,18 +146,35 @@ function loadJson(key, fallback) {
 function loadPersonalization() {
   try {
     const value = JSON.parse(safeStorageGet(PERSONALIZATION_KEY) || "null");
-    const items = Array.isArray(value?.items)
-      ? value.items.filter((item) => /^[A-Za-z0-9_-]{11}$/.test(String(item?.id || ""))).slice(0, 80)
+    const sanitizeItems = (items, limit = 100) => Array.isArray(items)
+      ? items.filter((item) => /^[A-Za-z0-9_-]{11}$/.test(String(item?.id || ""))).slice(0, limit)
       : [];
+    const items = sanitizeItems(value?.items, 100);
+    const likedItems = sanitizeItems(value?.likedItems?.length
+      ? value.likedItems
+      : items.filter((item) => item.recommendationReason === "วิดีโอที่คุณชอบ"), 50);
+    const subscriptionItems = sanitizeItems(value?.subscriptionItems?.length
+      ? value.subscriptionItems
+      : items.filter((item) => item.recommendationReason === "ใหม่จากช่องที่ติดตาม"), 50);
     return {
       items,
+      likedItems,
+      subscriptionItems,
       subscriptionCount: Math.max(0, Number(value?.subscriptionCount) || 0),
       likedCount: Math.max(0, Number(value?.likedCount) || 0),
       updatedAt: String(value?.updatedAt || "")
     };
   } catch {
-    return { items: [], subscriptionCount: 0, likedCount: 0, updatedAt: "" };
+    return emptyPersonalization();
   }
+}
+
+function emptyPersonalization() {
+  return { items: [], likedItems: [], subscriptionItems: [], subscriptionCount: 0, likedCount: 0, updatedAt: "" };
+}
+
+function hasYouTubeConnection() {
+  return Boolean(personalization.updatedAt || personalization.items.length || personalization.subscriptionCount || personalization.likedCount);
 }
 
 function savePersonalization() {
@@ -367,6 +384,18 @@ function configureEmptyState() {
     elements.emptyTitle.textContent = "ยังไม่มีประวัติใน MyTube";
     elements.emptyCopy.textContent = "นำเข้าประวัติเดิมจาก YouTube หรือเปิดวิดีโอใน MyTube เพื่อเริ่มบันทึกประวัติ";
     elements.backHome.textContent = "นำเข้าจาก YouTube";
+  } else if (activeView === "subscriptions") {
+    elements.emptyTitle.textContent = hasYouTubeConnection() ? "ยังไม่มีคลิปใหม่จากช่องที่ติดตาม" : "เชื่อม YouTube เพื่อดูการติดตาม";
+    elements.emptyCopy.textContent = hasYouTubeConnection()
+      ? "กดอัปเดตข้อมูล YouTube เพื่อสุ่มคลิปล่าสุดจากช่องที่คุณติดตามอีกครั้ง"
+      : "ใช้สิทธิ์อ่านอย่างเดียว และ MyTube จะไม่กดติดตามหรือแก้ไขบัญชีแทนคุณ";
+    elements.backHome.textContent = hasYouTubeConnection() ? "อัปเดตข้อมูล YouTube" : "เชื่อม YouTube";
+  } else if (activeView === "liked") {
+    elements.emptyTitle.textContent = hasYouTubeConnection() ? "ยังไม่พบวิดีโอที่ชอบ" : "เชื่อม YouTube เพื่อดูวิดีโอที่ชอบ";
+    elements.emptyCopy.textContent = hasYouTubeConnection()
+      ? "กดอัปเดตข้อมูล YouTube เพื่อดึงรายการล่าสุดแบบอ่านอย่างเดียว"
+      : "MyTube อ่านรายการที่คุณกดถูกใจได้ แต่จะไม่เพิ่มหรือลบการกดถูกใจ";
+    elements.backHome.textContent = hasYouTubeConnection() ? "อัปเดตข้อมูล YouTube" : "เชื่อม YouTube";
   } else {
     elements.emptyTitle.textContent = "ยังไม่พบวิดีโอ";
     elements.emptyCopy.textContent = "ลองค้นหาด้วยคำอื่น หรือกลับไปดูวิดีโอกำลังมาแรง";
@@ -449,7 +478,7 @@ function loadNextVideoPage() {
 function activateView(view) {
   activeView = view;
   elements.body.dataset.view = view;
-  if (view === "watch-later" || view === "history") {
+  if (["watch-later", "history", "subscriptions", "liked"].includes(view)) {
     requestSerial += 1;
     requestController?.abort();
     requestController = null;
@@ -474,13 +503,26 @@ function activateView(view) {
     elements.eyebrow.textContent = "PRIVATE • ON THIS BROWSER";
     videos = [...history];
     render();
+  } else if (view === "subscriptions") {
+    elements.title.textContent = "การติดตาม";
+    elements.eyebrow.textContent = "YOUTUBE • READ ONLY";
+    videos = [...personalization.subscriptionItems];
+    render();
+  } else if (view === "liked") {
+    elements.title.textContent = "วิดีโอที่ชอบ";
+    elements.eyebrow.textContent = "YOUTUBE • READ ONLY";
+    videos = [...personalization.likedItems];
+    render();
   } else {
     activeQuery = "";
+    activeCategory = "";
     elements.searchInput.value = "";
+    [...elements.chips.querySelectorAll("[data-category]")].forEach((button) => button.classList.toggle("active", !button.dataset.category));
     elements.title.textContent = "กำลังมาแรงในไทย";
     elements.eyebrow.textContent = "MYTUBE • THAILAND";
     fetchVideos(videoRequestUrl());
   }
+  updatePersonalizationPanel();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -980,7 +1022,7 @@ function requestYouTubeAccessToken() {
       },
       error_callback: () => reject(new Error("การเชื่อม YouTube ถูกยกเลิกหรือป๊อปอัปถูกบล็อก"))
     });
-    client.requestAccessToken({ prompt: personalization.items.length ? "" : "consent" });
+    client.requestAccessToken({ prompt: hasYouTubeConnection() ? "" : "consent" });
   }));
 }
 
@@ -1043,6 +1085,17 @@ function channelThumbnailMap(channels) {
   }));
 }
 
+async function loadAuthorizedVideoDetails(ids, token) {
+  const uniqueIds = [...new Set(ids)].filter(Boolean).slice(0, 50);
+  if (uniqueIds.length === 0) return [];
+  const response = await authorizedYouTubeRequest("videos", {
+    part: "snippet,contentDetails,statistics",
+    id: uniqueIds.join(","),
+    maxResults: 50
+  }, token);
+  return response.items || [];
+}
+
 async function buildPersonalizationSnapshot(token) {
   const [mine, subscriptions] = await Promise.all([
     authorizedYouTubeRequest("channels", { part: "contentDetails", mine: true }, token),
@@ -1052,11 +1105,11 @@ async function buildPersonalizationSnapshot(token) {
   const subscriptionIds = [...new Set(subscriptions.items
     .map((item) => String(item?.snippet?.resourceId?.channelId || ""))
     .filter(Boolean))];
-  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, 8);
+  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, 12);
 
   const [likes, selectedChannels] = await Promise.all([
     likesPlaylistId
-      ? authorizedYouTubeRequest("playlistItems", { part: "contentDetails,snippet", playlistId: likesPlaylistId, maxResults: 20 }, token)
+      ? authorizedYouTubeRequest("playlistItems", { part: "contentDetails,snippet", playlistId: likesPlaylistId, maxResults: 50 }, token)
       : Promise.resolve({ items: [], pageInfo: {} }),
     selectedSubscriptionIds.length
       ? authorizedYouTubeRequest("channels", { part: "snippet,contentDetails", id: selectedSubscriptionIds.join(","), maxResults: 50 }, token)
@@ -1073,27 +1126,30 @@ async function buildPersonalizationSnapshot(token) {
     maxResults: 5
   }, token).catch(() => ({ items: [] }))));
   const uploadIds = uploadPages.flatMap(playlistVideoIds);
-  const candidateIds = [...new Set([...likedIds, ...uploadIds])].slice(0, 50);
-  if (candidateIds.length === 0) throw new Error("ยังไม่พบวิดีโอที่ชอบหรือคลิปใหม่จากช่องที่ติดตาม");
+  if (likedIds.length === 0 && uploadIds.length === 0) throw new Error("ยังไม่พบวิดีโอที่ชอบหรือคลิปใหม่จากช่องที่ติดตาม");
 
-  const details = await authorizedYouTubeRequest("videos", {
-    part: "snippet,contentDetails,statistics",
-    id: candidateIds.join(","),
-    maxResults: 50
-  }, token);
-  const videoChannelIds = [...new Set((details.items || []).map((item) => String(item?.snippet?.channelId || "")).filter(Boolean))];
+  const [likedDetails, subscriptionDetails] = await Promise.all([
+    loadAuthorizedVideoDetails(likedIds, token),
+    loadAuthorizedVideoDetails(uploadIds, token)
+  ]);
+  const allDetails = [...likedDetails, ...subscriptionDetails];
+  const videoChannelIds = [...new Set(allDetails.map((item) => String(item?.snippet?.channelId || "")).filter(Boolean))].slice(0, 50);
   const channelDetails = videoChannelIds.length
     ? await authorizedYouTubeRequest("channels", { part: "snippet", id: videoChannelIds.join(","), maxResults: 50 }, token)
     : { items: [] };
   const thumbnails = channelThumbnailMap(channelDetails.items);
-  const likedSet = new Set(likedIds);
-  const items = (details.items || []).map((item) => {
+  const formatItems = (details, recommendationReason) => details.map((item) => {
     const video = formatAuthorizedVideo(item, thumbnails);
-    return video ? { ...video, recommendationReason: likedSet.has(video.id) ? "วิดีโอที่คุณชอบ" : "ใหม่จากช่องที่ติดตาม" } : null;
+    return video ? { ...video, recommendationReason } : null;
   }).filter(Boolean);
+  const likedItems = formatItems(likedDetails, "วิดีโอที่คุณชอบ");
+  const subscriptionItems = formatItems(subscriptionDetails, "ใหม่จากช่องที่ติดตาม");
+  const items = [...new Map([...likedItems, ...subscriptionItems].map((video) => [video.id, video])).values()];
   if (items.length === 0) throw new Error("วิดีโอจากบัญชีนี้ไม่พร้อมแสดงใน MyTube");
   return {
     items,
+    likedItems,
+    subscriptionItems,
     subscriptionCount: subscriptions.totalResults,
     likedCount: Math.max(likedIds.length, Number(likes.pageInfo?.totalResults) || 0),
     updatedAt: new Date().toISOString()
@@ -1101,15 +1157,18 @@ async function buildPersonalizationSnapshot(token) {
 }
 
 function updatePersonalizationPanel(message = "", isError = false) {
-  const connected = personalization.items.length > 0;
+  const connected = hasYouTubeConnection();
+  const isAccountView = ["subscriptions", "liked"].includes(activeView);
   elements.personalizationPanel.classList.toggle("connected", connected && !isError);
   elements.personalizationPanel.classList.toggle("error", isError);
-  elements.personalizationTitle.textContent = connected ? "ฟีดสำหรับคุณจาก YouTube พร้อมแล้ว" : "ทำหน้าแรกให้ตรงกับสิ่งที่คุณชอบ";
+  elements.personalizationTitle.textContent = connected
+    ? (isAccountView ? "เชื่อม YouTube แบบอ่านอย่างเดียวทั่ว MyTube แล้ว" : "ฟีดสำหรับคุณจาก YouTube พร้อมแล้ว")
+    : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
   elements.personalizationStatus.textContent = message || (connected
     ? `${formatCompactNumber(personalization.subscriptionCount)} ช่องที่ติดตาม • ${formatCompactNumber(personalization.likedCount)} วิดีโอที่ชอบ • อัปเดต${formatAge(personalization.updatedAt)}`
-    : "เชื่อม YouTube แบบอ่านอย่างเดียว เพื่อผสมคลิปจากช่องที่ติดตามและวิดีโอที่ชอบ");
-  elements.connectYouTube.textContent = personalizationBusy ? "กำลังเชื่อม…" : connected ? "อัปเดตความชอบ" : "เชื่อม YouTube";
-  elements.accountYouTube.querySelector("span:nth-child(2)").textContent = connected ? "อัปเดตฟีดสำหรับคุณ" : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
+    : "ใช้สิทธิ์เดียวเพื่อเปิดการติดตามและวิดีโอที่ชอบในทุกหน้าของ MyTube");
+  elements.connectYouTube.textContent = personalizationBusy ? "กำลังเชื่อม…" : connected ? "อัปเดตข้อมูล" : "เชื่อม YouTube";
+  elements.accountYouTube.querySelector("span:nth-child(2)").textContent = connected ? "อัปเดตข้อมูล YouTube" : "เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว";
   elements.connectYouTube.disabled = personalizationBusy;
   elements.accountYouTube.disabled = personalizationBusy;
   elements.clearPersonalization.hidden = !connected || personalizationBusy;
@@ -1128,6 +1187,7 @@ async function connectYouTubePersonalization() {
     personalization = await buildPersonalizationSnapshot(token);
     if (!savePersonalization()) finalMessage = "สร้างฟีดแล้ว แต่เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูลไว้";
     if (activeView === "home") await fetchVideos(videoRequestUrl());
+    else if (["subscriptions", "liked"].includes(activeView)) activateView(activeView);
   } catch (error) {
     failed = true;
     finalMessage = error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
@@ -1139,13 +1199,14 @@ async function connectYouTubePersonalization() {
 
 function clearPersonalizedFeed() {
   if (!window.confirm("ล้างข้อมูลฟีดสำหรับคุณที่เก็บในเบราว์เซอร์นี้หรือไม่?")) return;
-  personalization = { items: [], subscriptionCount: 0, likedCount: 0, updatedAt: "" };
+  personalization = emptyPersonalization();
   safeStorageSet(PERSONALIZATION_KEY, "");
   safeStorageSet(LAST_HOME_ORDER_KEY, "");
   youtubeAccessToken = "";
   youtubeTokenExpiresAt = 0;
   updatePersonalizationPanel("ล้างข้อมูลฟีดสำหรับคุณแล้ว");
   if (activeView === "home") fetchVideos(videoRequestUrl());
+  else if (["subscriptions", "liked"].includes(activeView)) activateView(activeView);
 }
 
 async function handleGoogleCredential(result) {
@@ -1322,10 +1383,12 @@ elements.voiceSearch.addEventListener("click", startVoiceSearch);
 
 elements.refresh.addEventListener("click", () => {
   if ((activeView === "search" && activeQuery) || activeView === "home") fetchVideos(videoRequestUrl());
+  else if (["subscriptions", "liked"].includes(activeView)) connectYouTubePersonalization();
   else render();
 });
 elements.backHome.addEventListener("click", () => {
   if (activeView === "history" || activeView === "watch-later") openImportDialog(activeView);
+  else if (["subscriptions", "liked"].includes(activeView)) connectYouTubePersonalization();
   else activateView("home");
 });
 elements.navButtons.forEach((button) => button.addEventListener("click", () => {
