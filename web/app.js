@@ -833,7 +833,7 @@ function openVideo(video) {
 }
 
 function minimizeVideo() {
-  if (!currentVideo || !elements.watchDialog.open || !mobileViewport.matches) return;
+  if (!currentVideo || !elements.watchDialog.open) return;
   elements.watchDialog.close();
   elements.watchDialog.classList.add("mini-player");
   elements.body.classList.add("has-mini-player");
@@ -1624,8 +1624,14 @@ elements.applyImport.addEventListener("click", async () => {
   }
 });
 elements.closePlayer.addEventListener("click", closeVideo);
-elements.minimizePlayer.addEventListener("click", minimizeVideo);
-elements.expandPlayer.addEventListener("click", expandVideo);
+elements.minimizePlayer.addEventListener("click", (event) => {
+  event.stopPropagation();
+  minimizeVideo();
+});
+elements.expandPlayer.addEventListener("click", (event) => {
+  event.stopPropagation();
+  expandVideo();
+});
 elements.shareCurrent.addEventListener("click", shareCurrentVideo);
 elements.watchDialog.addEventListener("click", (event) => {
   if (elements.watchDialog.classList.contains("mini-player")) {
