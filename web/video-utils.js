@@ -43,7 +43,7 @@ export function privacyEmbedUrl(videoId) {
   if (!VIDEO_ID_PATTERN.test(videoId)) {
     throw new TypeError("Invalid YouTube video ID.");
   }
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1`;
 }
 
 export function isSearchQuery(value) {

@@ -20,7 +20,7 @@ test("rejects lookalike hosts and invalid IDs", () => {
 
 test("builds canonical and privacy-enhanced URLs", () => {
   assert.equal(canonicalWatchUrl(id), `https://www.youtube.com/watch?v=${id}`);
-  assert.equal(privacyEmbedUrl(id), `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`);
+  assert.equal(privacyEmbedUrl(id), `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&playsinline=1`);
   assert.throws(() => privacyEmbedUrl("invalid"), TypeError);
 });
 
