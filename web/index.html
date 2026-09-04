@@ -15,7 +15,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body class="auth-pending">
+<body class="auth-pending" data-view="home">
   <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
     <div class="auth-card">
       <div class="auth-brand">
@@ -39,20 +39,29 @@
       <strong>MyTube</strong><small>TH</small>
     </a>
 
-    <form class="search-form" id="search-form" role="search">
-      <label class="sr-only" for="search-input">ค้นหาวิดีโอ</label>
-      <input id="search-input" type="search" autocomplete="off" maxlength="100" placeholder="ค้นหา">
-      <button type="submit" aria-label="ค้นหา"><span class="search-icon" aria-hidden="true"></span></button>
-    </form>
+    <div class="search-cluster">
+      <form class="search-form" id="search-form" role="search">
+        <label class="sr-only" for="search-input">ค้นหาวิดีโอ</label>
+        <input id="search-input" type="search" autocomplete="off" maxlength="100" placeholder="ค้นหา">
+        <button type="submit" aria-label="ค้นหา"><span class="search-icon" aria-hidden="true"></span></button>
+      </form>
+      <button class="round-button voice-button" id="voice-search" type="button" aria-label="ค้นหาด้วยเสียง">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 1 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21H8v2h8v-2h-3v-3.08A7 7 0 0 0 19 11h-2Z"/></svg>
+      </button>
+    </div>
 
-    <button class="privacy-pill" id="privacy-button" type="button">
-      <span class="lock-dot" aria-hidden="true"></span>
-      <span>ส่วนตัว</span>
-    </button>
-    <button class="avatar" id="account-button" type="button" aria-label="เปิดเมนูบัญชี" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false">
-      <span class="avatar-fallback" id="account-avatar-fallback" aria-hidden="true">MY</span>
-      <img class="account-avatar-image" id="account-avatar-image" alt="" referrerpolicy="no-referrer" hidden>
-    </button>
+    <div class="header-actions">
+      <a class="create-button" href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer" aria-label="สร้างวิดีโอบน YouTube">
+        <span aria-hidden="true">＋</span><strong>สร้าง</strong>
+      </a>
+      <a class="round-button notification-button" href="https://www.youtube.com/feed/notifications" target="_blank" rel="noopener noreferrer" aria-label="การแจ้งเตือนบน YouTube">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22a2.3 2.3 0 0 0 2.12-1.4H9.88A2.3 2.3 0 0 0 12 22Zm7-5-2-2v-4a5 5 0 0 0-4-4.9V5a1 1 0 1 0-2 0v1.1A5 5 0 0 0 7 11v4l-2 2v1h14v-1Z"/></svg>
+      </a>
+      <button class="avatar" id="account-button" type="button" aria-label="เปิดเมนูบัญชี" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false">
+        <span class="avatar-fallback" id="account-avatar-fallback" aria-hidden="true">MY</span>
+        <img class="account-avatar-image" id="account-avatar-image" alt="" referrerpolicy="no-referrer" hidden>
+      </button>
+    </div>
     <section class="account-menu" id="account-menu" role="dialog" aria-labelledby="account-name" hidden>
       <div class="account-profile">
         <div class="account-avatar-large" aria-hidden="true">
@@ -72,6 +81,12 @@
         <button class="account-action" id="account-privacy" type="button">
           <span aria-hidden="true">◉</span><span>ความเป็นส่วนตัว MyTube</span><span aria-hidden="true">›</span>
         </button>
+        <button class="account-action" type="button" data-view="history">
+          <span aria-hidden="true">◷</span><span>ประวัติการดูของฉัน</span><span aria-hidden="true">›</span>
+        </button>
+        <button class="account-action" type="button" data-view="watch-later">
+          <span aria-hidden="true">▣</span><span>วิดีโอดูภายหลัง</span><span aria-hidden="true">›</span>
+        </button>
         <button class="account-action account-signout" id="account-logout" type="button">
           <span aria-hidden="true">↪</span><span>ออกจากระบบ MyTube</span><span></span>
         </button>
@@ -81,20 +96,42 @@
   </header>
 
   <aside class="sidebar" id="sidebar" aria-label="เมนูหลัก">
-    <nav>
+    <div class="sidebar-scroll">
+    <nav class="sidebar-section">
       <button class="nav-item active" type="button" data-view="home">
-        <span class="nav-icon">⌂</span><span>หน้าหลัก</span>
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 7.3V21h-6v-6H9v6H3V10.3L12 3Zm0 2.6-7 5.7V19h2v-6h10v6h2v-7.7l-7-5.7Z"/></svg><span>หน้าหลัก</span>
       </button>
-      <button class="nav-item" type="button" data-view="watch-later">
-        <span class="nav-icon">▣</span><span>ดูภายหลัง</span>
-      </button>
-      <button class="nav-item" type="button" data-view="history">
-        <span class="nav-icon">◷</span><span>ประวัติการดู</span>
-      </button>
+      <a class="nav-item" href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m10 2 7 4-3 2 3 2-10 5 3 2-3 2-4-2 3-2-3-2 10-5-3-2 3-2Zm1 8v5l4-2.5-4-2.5Z"/></svg><span>Shorts</span>
+      </a>
+      <a class="nav-item" href="https://www.youtube.com/feed/subscriptions" target="_blank" rel="noopener noreferrer">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v2H6V3ZM4 7h16v2H4V7Zm-1 4h18v10H3V11Zm2 2v6h14v-6H5Zm5 1 5 2-5 2v-4Z"/></svg><span>การติดตาม</span>
+      </a>
     </nav>
-    <div class="sidebar-note">
-      <span class="lock-dot" aria-hidden="true"></span>
-      <p>ข้อมูลอยู่ในโดเมนนี้ และนำเข้าจาก YouTube ได้</p>
+    <div class="sidebar-divider"></div>
+    <nav class="sidebar-section library-nav">
+      <p class="sidebar-heading">คุณ <span aria-hidden="true">›</span></p>
+      <button class="nav-item" type="button" data-view="history">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 1-8.2 5.3L2 10V4h6L6.2 5.8A7 7 0 1 0 13 5v4h-2V3h2Zm-1 7.2 4.2 2.5-1 1.7-5.2-3.1V7h2v3.2Z"/></svg><span>ประวัติการดู</span>
+      </button>
+      <a class="nav-item" href="https://www.youtube.com/feed/playlists" target="_blank" rel="noopener noreferrer">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11v2H4V5Zm0 4h11v2H4V9Zm0 4h7v2H4v-2Zm12-1 5 3-5 3v-6Z"/></svg><span>เพลย์ลิสต์</span>
+      </a>
+      <button class="nav-item" type="button" data-view="watch-later">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-9 9 9 9 0 0 1 9-9Zm0 2a7 7 0 1 0 7 7 7 7 0 0 0-7-7Zm1 2v4.6l3.5 2.1-1 1.7-4.5-2.7V7h2Z"/></svg><span>ดูภายหลัง</span>
+      </button>
+      <a class="nav-item" href="https://www.youtube.com/playlist?list=LL" target="_blank" rel="noopener noreferrer">
+        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5V9h4v12Zm2 0V9l4-6 2 1v5h4v3l-3 9h-7Z"/></svg><span>วิดีโอที่ชอบ</span>
+      </a>
+    </nav>
+    <div class="sidebar-divider"></div>
+    <button class="nav-item" id="privacy-button" type="button">
+      <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5.1 3.4 9.8 8 11 4.6-1.2 8-5.9 8-11V5l-8-3Zm0 2.2L18 6.5V11c0 4-2.5 7.6-6 8.8C8.5 18.6 6 15 6 11V6.5l6-2.3ZM11 8h2v5h-2V8Zm0 7h2v2h-2v-2Z"/></svg><span>ความเป็นส่วนตัว</span>
+    </button>
+    <div class="sidebar-footer">
+      <p>MyTube Private</p>
+      <small>ข้อมูลประวัติและดูภายหลังอยู่ในเบราว์เซอร์นี้</small>
+    </div>
     </div>
   </aside>
 
@@ -141,9 +178,19 @@
 
   <nav class="bottom-nav" aria-label="เมนูมือถือ">
     <button class="active" type="button" data-view="home"><span>⌂</span>หน้าหลัก</button>
-    <button type="button" data-view="watch-later"><span>▣</span>ดูภายหลัง</button>
-    <button type="button" data-view="history"><span>◷</span>ประวัติ</button>
+    <a href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer"><span>ϟ</span>Shorts</a>
+    <a class="mobile-create" href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer" aria-label="สร้างวิดีโอบน YouTube"><span>＋</span></a>
+    <button type="button" data-view="watch-later"><span>◷</span>ดูภายหลัง</button>
+    <button id="mobile-account-button" type="button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false"><span class="mobile-avatar" id="mobile-avatar-fallback">MY</span>คุณ</button>
   </nav>
+
+  <div class="video-menu" id="video-menu" role="menu" aria-label="ตัวเลือกวิดีโอ" hidden>
+    <button type="button" data-video-menu-action="play" role="menuitem"><span aria-hidden="true">▶</span><span>เล่นวิดีโอ</span></button>
+    <button type="button" data-video-menu-action="watch-later" role="menuitem"><span aria-hidden="true">◷</span><span id="video-menu-watch-label">บันทึกไว้ดูภายหลัง</span></button>
+    <a id="video-menu-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer" role="menuitem"><span aria-hidden="true">↗</span><span>เปิดใน YouTube</span></a>
+    <button type="button" data-video-menu-action="copy" role="menuitem"><span aria-hidden="true">⧉</span><span>คัดลอกลิงก์</span></button>
+  </div>
+  <p class="toast" id="toast" role="status" aria-live="polite" hidden></p>
 
   <dialog class="watch-dialog" id="watch-dialog">
     <div class="watch-shell">

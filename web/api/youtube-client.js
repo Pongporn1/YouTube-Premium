@@ -35,11 +35,34 @@ export function formatVideo(item) {
     id,
     title: String(snippet.title || `YouTube video ${id}`).slice(0, 300),
     channel: String(snippet.channelTitle || "YouTube").slice(0, 120),
+    channelId: String(snippet.channelId || "").slice(0, 80),
     publishedAt: String(snippet.publishedAt || ""),
     thumbnail: String(thumbnails.maxres?.url || thumbnails.high?.url || thumbnails.medium?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`),
     duration: parseDuration(item.contentDetails?.duration),
     views: String(item.statistics?.viewCount || "0")
   };
+}
+
+export function mergeChannelThumbnails(videos, channels) {
+  const thumbnails = new Map((channels || []).map((channel) => {
+    const source = channel?.snippet?.thumbnails || {};
+    return [String(channel?.id || ""), String(source.high?.url || source.medium?.url || source.default?.url || "")];
+  }));
+  return (videos || []).map((video) => ({
+    ...video,
+    channelThumbnail: thumbnails.get(video.channelId) || ""
+  }));
+}
+
+export async function addChannelThumbnails(videos) {
+  const ids = [...new Set((videos || []).map((video) => video.channelId).filter(Boolean))].slice(0, 50);
+  if (ids.length === 0) return videos;
+  try {
+    const data = await youtubeRequest("channels", { part: "snippet", id: ids.join(","), maxResults: 50 });
+    return mergeChannelThumbnails(videos, data.items || []);
+  } catch {
+    return videos;
+  }
 }
 
 export async function youtubeRequest(resource, parameters) {

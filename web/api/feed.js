@@ -1,4 +1,4 @@
-import { formatVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
+import { addChannelThumbnails, formatVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
 import { requireSession } from "./auth/session-core.js";
 
 export default async function handler(request, response) {
@@ -17,8 +17,9 @@ export default async function handler(request, response) {
       pageToken: normalizePageToken(request.query.pageToken)
     });
     response.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");
+    const items = await addChannelThumbnails((data.items || []).map(formatVideo).filter(Boolean));
     return response.status(200).json({
-      items: (data.items || []).map(formatVideo).filter(Boolean),
+      items,
       nextPageToken: String(data.nextPageToken || "")
     });
   } catch (error) {

@@ -21,8 +21,11 @@ const elements = {
   accountEmail: document.getElementById("account-email"),
   accountPrivacy: document.getElementById("account-privacy"),
   accountLogout: document.getElementById("account-logout"),
+  mobileAccountButton: document.getElementById("mobile-account-button"),
+  mobileAvatarFallback: document.getElementById("mobile-avatar-fallback"),
   logoutButton: document.getElementById("logout-button"),
   menuToggle: document.getElementById("menu-toggle"),
+  voiceSearch: document.getElementById("voice-search"),
   searchForm: document.getElementById("search-form"),
   searchInput: document.getElementById("search-input"),
   chips: document.getElementById("category-chips"),
@@ -61,7 +64,11 @@ const elements = {
   chooseImportFiles: document.getElementById("choose-import-files"),
   libraryFiles: document.getElementById("library-files"),
   applyImport: document.getElementById("apply-import"),
-  importDialogMessage: document.getElementById("import-dialog-message")
+  importDialogMessage: document.getElementById("import-dialog-message"),
+  videoMenu: document.getElementById("video-menu"),
+  videoMenuWatchLabel: document.getElementById("video-menu-watch-label"),
+  videoMenuYouTube: document.getElementById("video-menu-youtube"),
+  toast: document.getElementById("toast")
 };
 
 let storageFailed = false;
@@ -75,6 +82,9 @@ let activeQuery = "";
 let requestController = null;
 let requestSerial = 0;
 let importTarget = "history";
+let currentMenuVideo = null;
+let currentMenuTrigger = null;
+let toastTimer = null;
 
 function safeStorageGet(key) {
   try {
@@ -184,6 +194,8 @@ function createVideoCard(video) {
   article.className = "video-card";
   article.dataset.videoId = video.id;
 
+  const thumbnailWrap = document.createElement("div");
+  thumbnailWrap.className = "thumbnail-wrap";
   const thumbnailButton = document.createElement("button");
   thumbnailButton.className = "thumbnail-button";
   thumbnailButton.type = "button";
@@ -198,37 +210,73 @@ function createVideoCard(video) {
   duration.className = "duration";
   duration.textContent = video.duration || "วิดีโอ";
   thumbnailButton.append(image, duration);
+  const quickWatchLater = document.createElement("button");
+  quickWatchLater.className = `quick-watch-later${isInWatchLater(video.id) ? " active" : ""}`;
+  quickWatchLater.type = "button";
+  quickWatchLater.dataset.action = "watch-later";
+  quickWatchLater.textContent = "◷";
+  quickWatchLater.setAttribute("aria-label", isInWatchLater(video.id) ? "นำออกจากดูภายหลัง" : "บันทึกไว้ดูภายหลัง");
+  quickWatchLater.title = isInWatchLater(video.id) ? "นำออกจากดูภายหลัง" : "ดูภายหลัง";
+  thumbnailWrap.append(thumbnailButton, quickWatchLater);
 
   const body = document.createElement("div");
   body.className = "card-body";
   const avatar = document.createElement("div");
   avatar.className = "channel-avatar";
-  avatar.textContent = avatarText(video.channel);
   avatar.style.backgroundColor = avatarColor(video.channel);
+  const channelPicture = safeProfilePicture(video.channelThumbnail);
+  if (channelPicture) {
+    const channelImage = document.createElement("img");
+    channelImage.src = channelPicture;
+    channelImage.alt = "";
+    channelImage.loading = "lazy";
+    channelImage.referrerPolicy = "no-referrer";
+    channelImage.addEventListener("error", () => {
+      channelImage.remove();
+      avatar.textContent = avatarText(video.channel);
+    }, { once: true });
+    avatar.append(channelImage);
+  } else {
+    avatar.textContent = avatarText(video.channel);
+  }
   const copy = document.createElement("div");
   copy.className = "card-copy";
   const title = document.createElement("h2");
-  title.textContent = video.title;
-  const channel = document.createElement("p");
+  const titleButton = document.createElement("button");
+  titleButton.className = "card-title-button";
+  titleButton.type = "button";
+  titleButton.dataset.action = "play";
+  titleButton.textContent = video.title;
+  title.append(titleButton);
+  const hasChannelLink = /^[A-Za-z0-9_-]{8,80}$/.test(String(video.channelId || ""));
+  const channel = document.createElement(hasChannelLink ? "a" : "p");
+  channel.className = "channel-link";
   channel.textContent = video.channel;
+  if (hasChannelLink) {
+    channel.href = `https://www.youtube.com/channel/${encodeURIComponent(video.channelId)}`;
+    channel.target = "_blank";
+    channel.rel = "noopener noreferrer";
+  }
   const stats = document.createElement("p");
   stats.textContent = `${formatViews(video.views)} • ${formatAge(video.publishedAt)}`;
   copy.append(title, channel, stats);
-  const watchLaterButton = document.createElement("button");
-  watchLaterButton.className = `favorite-button${isInWatchLater(video.id) ? " active" : ""}`;
-  watchLaterButton.type = "button";
-  watchLaterButton.dataset.action = "watch-later";
-  watchLaterButton.textContent = isInWatchLater(video.id) ? "▣" : "□";
-  watchLaterButton.setAttribute("aria-label", isInWatchLater(video.id) ? "นำออกจากดูภายหลัง" : "เพิ่มไปดูภายหลัง");
-  body.append(avatar, copy, watchLaterButton);
-  article.append(thumbnailButton, body);
+  const menuButton = document.createElement("button");
+  menuButton.className = "card-menu-button";
+  menuButton.type = "button";
+  menuButton.dataset.action = "options";
+  menuButton.textContent = "⋮";
+  menuButton.setAttribute("aria-label", `ตัวเลือกสำหรับ ${video.title}`);
+  menuButton.setAttribute("aria-haspopup", "menu");
+  menuButton.setAttribute("aria-expanded", "false");
+  body.append(avatar, copy, menuButton);
+  article.append(thumbnailWrap, body);
   return article;
 }
 
 function configureEmptyState() {
   if (activeView === "watch-later") {
     elements.emptyTitle.textContent = "ยังไม่มีรายการดูภายหลังใน MyTube";
-    elements.emptyCopy.textContent = "นำเข้ารายการ Watch Later เดิมจาก YouTube หรือกดปุ่ม □ บนวิดีโอเพื่อเก็บไว้ดูภายหลัง";
+    elements.emptyCopy.textContent = "นำเข้ารายการ Watch Later เดิมจาก YouTube หรือกดปุ่ม ◷ บนวิดีโอเพื่อเก็บไว้ดูภายหลัง";
     elements.backHome.textContent = "นำเข้าจาก YouTube";
   } else if (activeView === "history") {
     elements.emptyTitle.textContent = "ยังไม่มีประวัติใน MyTube";
@@ -281,6 +329,7 @@ async function fetchVideos(url) {
 
 function activateView(view) {
   activeView = view;
+  elements.body.dataset.view = view;
   if (view === "watch-later" || view === "history") {
     requestSerial += 1;
     requestController?.abort();
@@ -320,6 +369,66 @@ function toggleWatchLater(video) {
   render();
   if (!saved) setStatus("บันทึกได้ชั่วคราว แต่เบราว์เซอร์ปิด Local Storage อยู่", true);
   updatePlayerWatchLater();
+}
+
+function closeVideoMenu() {
+  if (currentMenuTrigger) currentMenuTrigger.setAttribute("aria-expanded", "false");
+  elements.videoMenu.hidden = true;
+  currentMenuVideo = null;
+  currentMenuTrigger = null;
+}
+
+function openVideoMenu(video, trigger) {
+  const isSameOpenMenu = !elements.videoMenu.hidden && currentMenuVideo?.id === video.id;
+  closeVideoMenu();
+  if (isSameOpenMenu) return;
+  currentMenuVideo = video;
+  currentMenuTrigger = trigger;
+  trigger.setAttribute("aria-expanded", "true");
+  elements.videoMenuWatchLabel.textContent = isInWatchLater(video.id) ? "นำออกจากดูภายหลัง" : "บันทึกไว้ดูภายหลัง";
+  elements.videoMenuYouTube.href = canonicalWatchUrl(video.id);
+  elements.videoMenu.hidden = false;
+  const rect = trigger.getBoundingClientRect();
+  const menuRect = elements.videoMenu.getBoundingClientRect();
+  const left = Math.min(window.innerWidth - menuRect.width - 8, Math.max(8, rect.right - menuRect.width));
+  const below = rect.bottom + 6;
+  const top = below + menuRect.height <= window.innerHeight - 8 ? below : Math.max(8, rect.top - menuRect.height - 6);
+  elements.videoMenu.style.left = `${left}px`;
+  elements.videoMenu.style.top = `${top}px`;
+}
+
+function showToast(message) {
+  window.clearTimeout(toastTimer);
+  elements.toast.textContent = message;
+  elements.toast.hidden = false;
+  toastTimer = window.setTimeout(() => { elements.toast.hidden = true; }, 2400);
+}
+
+function startVoiceSearch() {
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) {
+    showToast("เบราว์เซอร์นี้ยังไม่รองรับการค้นหาด้วยเสียง");
+    return;
+  }
+  const recognition = new Recognition();
+  recognition.lang = "th-TH";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+  elements.voiceSearch.classList.add("listening");
+  recognition.addEventListener("result", (event) => {
+    const transcript = String(event.results?.[0]?.[0]?.transcript || "").trim();
+    if (!transcript) return;
+    elements.searchInput.value = transcript;
+    elements.searchForm.requestSubmit();
+  });
+  recognition.addEventListener("error", () => showToast("ไม่สามารถรับเสียงได้ กรุณาลองใหม่"));
+  recognition.addEventListener("end", () => elements.voiceSearch.classList.remove("listening"));
+  try {
+    recognition.start();
+  } catch {
+    elements.voiceSearch.classList.remove("listening");
+    showToast("ไมโครโฟนยังไม่พร้อมใช้งาน");
+  }
 }
 
 function addHistory(video) {
@@ -504,6 +613,7 @@ function toggleAccountMenu(force) {
   const shouldOpen = typeof force === "boolean" ? force : elements.accountMenu.hidden;
   elements.accountMenu.hidden = !shouldOpen;
   elements.accountButton.setAttribute("aria-expanded", String(shouldOpen));
+  elements.mobileAccountButton.setAttribute("aria-expanded", String(shouldOpen));
 }
 
 function unlockApp(user) {
@@ -517,6 +627,7 @@ function unlockApp(user) {
   elements.accountButton.setAttribute("aria-label", `เปิดเมนูบัญชี ${label}`);
   setAccountAvatar(elements.accountAvatarImage, elements.accountAvatarFallback, picture, initials);
   setAccountAvatar(elements.accountMenuAvatarImage, elements.accountMenuAvatarFallback, picture, initials);
+  elements.mobileAvatarFallback.textContent = initials;
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
   fetchVideos("/api/feed");
@@ -603,6 +714,12 @@ async function initializeAuth() {
 elements.menuToggle.addEventListener("click", () => elements.body.classList.toggle("sidebar-collapsed"));
 elements.accountButton.addEventListener("click", (event) => {
   event.stopPropagation();
+  closeVideoMenu();
+  toggleAccountMenu();
+});
+elements.mobileAccountButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  closeVideoMenu();
   toggleAccountMenu();
 });
 elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
@@ -611,17 +728,49 @@ elements.accountPrivacy.addEventListener("click", () => {
   elements.privacyDialog.showModal();
 });
 elements.accountLogout.addEventListener("click", () => performLogout(elements.accountLogout));
-document.addEventListener("click", () => toggleAccountMenu(false));
-document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || elements.accountMenu.hidden) return;
+elements.videoMenu.addEventListener("click", async (event) => {
+  event.stopPropagation();
+  const action = event.target.closest("[data-video-menu-action]")?.dataset.videoMenuAction;
+  const video = currentMenuVideo;
+  if (!action || !video) return;
+  if (action === "play") {
+    closeVideoMenu();
+    openVideo(video);
+  } else if (action === "watch-later") {
+    closeVideoMenu();
+    toggleWatchLater(video);
+  } else if (action === "copy") {
+    try {
+      await navigator.clipboard.writeText(canonicalWatchUrl(video.id));
+      showToast("คัดลอกลิงก์วิดีโอแล้ว");
+    } catch {
+      showToast("คัดลอกลิงก์ไม่สำเร็จ");
+    }
+    closeVideoMenu();
+  }
+});
+elements.videoMenuYouTube.addEventListener("click", () => closeVideoMenu());
+document.addEventListener("click", () => {
   toggleAccountMenu(false);
-  elements.accountButton.focus();
+  closeVideoMenu();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!elements.accountMenu.hidden) {
+    toggleAccountMenu(false);
+    elements.accountButton.focus();
+  } else if (!elements.videoMenu.hidden) {
+    const trigger = currentMenuTrigger;
+    closeVideoMenu();
+    trigger?.focus();
+  }
 });
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const query = elements.searchInput.value.trim();
   if (!query) return activateView("home");
   activeView = "search";
+  elements.body.dataset.view = "search";
   activeQuery = query;
   elements.navButtons.forEach((button) => button.classList.remove("active"));
   elements.chips.hidden = true;
@@ -649,7 +798,13 @@ elements.grid.addEventListener("click", (event) => {
   if (!video) return;
   if (action.dataset.action === "play") openVideo(video);
   if (action.dataset.action === "watch-later") toggleWatchLater(video);
+  if (action.dataset.action === "options") {
+    event.stopPropagation();
+    openVideoMenu(video, action);
+  }
 });
+
+elements.voiceSearch.addEventListener("click", startVoiceSearch);
 
 elements.refresh.addEventListener("click", () => {
   if (activeView === "search" && activeQuery) fetchVideos(`/api/search?q=${encodeURIComponent(activeQuery)}`);
@@ -660,7 +815,11 @@ elements.backHome.addEventListener("click", () => {
   if (activeView === "history" || activeView === "watch-later") openImportDialog(activeView);
   else activateView("home");
 });
-elements.navButtons.forEach((button) => button.addEventListener("click", () => activateView(button.dataset.view)));
+elements.navButtons.forEach((button) => button.addEventListener("click", () => {
+  toggleAccountMenu(false);
+  closeVideoMenu();
+  activateView(button.dataset.view);
+}));
 elements.historySearch.addEventListener("input", () => render());
 elements.importLibrary.addEventListener("click", () => openImportDialog(activeView));
 elements.clearLibrary.addEventListener("click", () => {
