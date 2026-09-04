@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0f0f0f">
   <meta name="description" content="MyTube Private — ค้นหาและดูวิดีโอ YouTube ในพื้นที่ส่วนตัวของคุณ">
   <title>MyTube Private</title>
@@ -36,6 +36,7 @@
     </a>
 
     <div class="search-cluster">
+      <button class="mobile-search-close" id="mobile-search-close" type="button" aria-label="ปิดการค้นหา">←</button>
       <form class="search-form" id="search-form" role="search">
         <label class="sr-only" for="search-input">ค้นหาวิดีโอ</label>
         <input id="search-input" type="search" autocomplete="off" maxlength="100" placeholder="ค้นหา">
@@ -196,11 +197,29 @@
   </main>
 
   <nav class="bottom-nav" aria-label="เมนูมือถือ">
-    <button class="active" type="button" data-view="home"><span>⌂</span>หน้าหลัก</button>
-    <a href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer"><span>ϟ</span>Shorts</a>
-    <a class="mobile-create" href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer" aria-label="สร้างวิดีโอบน YouTube"><span>＋</span></a>
-    <button type="button" data-view="subscriptions"><span>▤</span>การติดตาม</button>
-    <button id="mobile-account-button" type="button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false"><span class="mobile-avatar" id="mobile-avatar-fallback">MY</span>คุณ</button>
+    <button class="active" type="button" data-view="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 7.3V21h-6v-6H9v6H3V10.3L12 3Zm0 2.6-7 5.7V19h2v-6h10v6h2v-7.7l-7-5.7Z"/></svg>
+      <span class="bottom-nav-label">หน้าหลัก</span>
+    </button>
+    <a href="https://www.youtube.com/shorts" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 2 7 4-3 2 3 2-10 5 3 2-3 2-4-2 3-2-3-2 10-5-3-2 3-2Zm1 8v5l4-2.5-4-2.5Z"/></svg>
+      <span class="bottom-nav-label">Shorts</span>
+    </a>
+    <a class="mobile-create" href="https://www.youtube.com/upload" target="_blank" rel="noopener noreferrer" aria-label="สร้างวิดีโอบน YouTube">
+      <span class="mobile-create-icon" aria-hidden="true">＋</span>
+      <span class="sr-only">สร้าง</span>
+    </a>
+    <button type="button" data-view="subscriptions">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v2H6V3ZM4 7h16v2H4V7Zm-1 4h18v10H3V11Zm2 2v6h14v-6H5Zm5 1 5 2-5 2v-4Z"/></svg>
+      <span class="bottom-nav-label">การติดตาม</span>
+    </button>
+    <button id="mobile-account-button" type="button" aria-haspopup="dialog" aria-controls="account-menu" aria-expanded="false">
+      <span class="mobile-avatar" aria-hidden="true">
+        <span id="mobile-avatar-fallback">MY</span>
+        <img id="mobile-avatar-image" alt="" referrerpolicy="no-referrer" hidden>
+      </span>
+      <span class="bottom-nav-label">คุณ</span>
+    </button>
   </nav>
 
   <div class="video-menu" id="video-menu" role="menu" aria-label="ตัวเลือกวิดีโอ" hidden>
@@ -213,6 +232,8 @@
 
   <dialog class="watch-dialog" id="watch-dialog">
     <div class="watch-shell">
+      <button class="dialog-minimize" id="minimize-player" type="button" aria-label="ย่อวิดีโอ">⌄</button>
+      <button class="dialog-expand" id="expand-player" type="button" aria-label="ขยายวิดีโอ">⤢</button>
       <button class="dialog-close" id="close-player" type="button" aria-label="ปิดวิดีโอ">×</button>
       <div class="player-frame">
         <iframe id="youtube-player" title="YouTube video player"
@@ -226,6 +247,7 @@
           <p><a class="player-channel-link" id="player-channel" target="_blank" rel="noopener noreferrer"></a><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
         </div>
         <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
+        <button class="watch-action" id="share-current" type="button">↗ <span>แชร์</span></button>
         <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
       </div>
       <p class="ad-note">ตัวเล่นนี้ใช้ YouTube Embed โฆษณาอาจแสดงตามการตัดสินใจของ YouTube</p>

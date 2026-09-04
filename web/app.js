@@ -26,9 +26,11 @@ const elements = {
   accountLogout: document.getElementById("account-logout"),
   mobileAccountButton: document.getElementById("mobile-account-button"),
   mobileAvatarFallback: document.getElementById("mobile-avatar-fallback"),
+  mobileAvatarImage: document.getElementById("mobile-avatar-image"),
   logoutButton: document.getElementById("logout-button"),
   menuToggle: document.getElementById("menu-toggle"),
   voiceSearch: document.getElementById("voice-search"),
+  mobileSearchClose: document.getElementById("mobile-search-close"),
   searchForm: document.getElementById("search-form"),
   searchInput: document.getElementById("search-input"),
   chips: document.getElementById("category-chips"),
@@ -57,12 +59,15 @@ const elements = {
   navButtons: [...document.querySelectorAll("[data-view]")],
   watchDialog: document.getElementById("watch-dialog"),
   closePlayer: document.getElementById("close-player"),
+  minimizePlayer: document.getElementById("minimize-player"),
+  expandPlayer: document.getElementById("expand-player"),
   player: document.getElementById("youtube-player"),
   playerTitle: document.getElementById("player-title"),
   playerChannel: document.getElementById("player-channel"),
   playerStats: document.getElementById("player-stats"),
   playerAvatar: document.getElementById("player-channel-avatar"),
   favoriteCurrent: document.getElementById("favorite-current"),
+  shareCurrent: document.getElementById("share-current"),
   openYouTube: document.getElementById("open-youtube"),
   commentsCount: document.getElementById("comments-count"),
   commentsOrder: document.getElementById("comments-order"),
@@ -114,6 +119,7 @@ let importTarget = "history";
 let currentMenuVideo = null;
 let currentMenuTrigger = null;
 let toastTimer = null;
+const mobileViewport = window.matchMedia("(max-width: 680px)");
 
 function safeStorageGet(key) {
   try {
@@ -476,6 +482,7 @@ function loadNextVideoPage() {
 }
 
 function activateView(view) {
+  elements.body.classList.remove("mobile-searching");
   activeView = view;
   elements.body.dataset.view = view;
   if (["watch-later", "history", "subscriptions", "liked"].includes(view)) {
@@ -739,6 +746,9 @@ async function loadComments(videoId, { append = false } = {}) {
 }
 
 function openVideo(video) {
+  if (elements.watchDialog.open) elements.watchDialog.close();
+  elements.watchDialog.classList.remove("mini-player");
+  elements.body.classList.remove("has-mini-player");
   currentVideo = video;
   addHistory(video);
   elements.player.src = privacyEmbedUrl(video.id);
@@ -771,8 +781,26 @@ function openVideo(video) {
   loadComments(video.id);
 }
 
+function minimizeVideo() {
+  if (!currentVideo || !elements.watchDialog.open || !mobileViewport.matches) return;
+  elements.watchDialog.close();
+  elements.watchDialog.classList.add("mini-player");
+  elements.body.classList.add("has-mini-player");
+  elements.watchDialog.show();
+}
+
+function expandVideo() {
+  if (!currentVideo || !elements.watchDialog.open || !elements.watchDialog.classList.contains("mini-player")) return;
+  elements.watchDialog.close();
+  elements.watchDialog.classList.remove("mini-player");
+  elements.body.classList.remove("has-mini-player");
+  elements.watchDialog.showModal();
+}
+
 function closeVideo() {
   if (elements.watchDialog.open) elements.watchDialog.close();
+  elements.watchDialog.classList.remove("mini-player");
+  elements.body.classList.remove("has-mini-player");
   elements.player.src = "";
   commentSerial += 1;
   commentController?.abort();
@@ -784,6 +812,21 @@ function closeVideo() {
   renderComments();
   elements.commentsStatus.textContent = "เลือกวิดีโอเพื่อดูความคิดเห็น";
   currentVideo = null;
+}
+
+async function shareCurrentVideo() {
+  if (!currentVideo) return;
+  const url = canonicalWatchUrl(currentVideo.id);
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: currentVideo.title, url });
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    showToast("คัดลอกลิงก์วิดีโอแล้ว");
+  } catch (error) {
+    if (error?.name !== "AbortError") showToast("แชร์วิดีโอไม่สำเร็จ");
+  }
 }
 
 function updatePlayerWatchLater() {
@@ -960,7 +1003,7 @@ function unlockApp(user) {
   elements.accountButton.setAttribute("aria-label", `เปิดเมนูบัญชี ${label}`);
   setAccountAvatar(elements.accountAvatarImage, elements.accountAvatarFallback, picture, initials);
   setAccountAvatar(elements.accountMenuAvatarImage, elements.accountMenuAvatarFallback, picture, initials);
-  elements.mobileAvatarFallback.textContent = initials;
+  setAccountAvatar(elements.mobileAvatarImage, elements.mobileAvatarFallback, picture, initials);
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
   fetchVideos("/api/feed");
@@ -1343,6 +1386,12 @@ document.addEventListener("keydown", (event) => {
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const query = elements.searchInput.value.trim();
+  if (mobileViewport.matches && !elements.body.classList.contains("mobile-searching") && !query) {
+    elements.body.classList.add("mobile-searching");
+    elements.searchInput.focus();
+    return;
+  }
+  elements.body.classList.remove("mobile-searching");
   if (!query) return activateView("home");
   activeView = "search";
   elements.body.dataset.view = "search";
@@ -1354,6 +1403,10 @@ elements.searchForm.addEventListener("submit", (event) => {
   elements.title.textContent = `ผลค้นหา “${query}”`;
   elements.eyebrow.textContent = "SEARCH RESULTS";
   fetchVideos(videoRequestUrl());
+});
+elements.mobileSearchClose.addEventListener("click", () => {
+  elements.body.classList.remove("mobile-searching");
+  elements.searchInput.blur();
 });
 
 elements.chips.addEventListener("click", (event) => {
@@ -1429,10 +1482,19 @@ elements.applyImport.addEventListener("click", async () => {
   }
 });
 elements.closePlayer.addEventListener("click", closeVideo);
-elements.watchDialog.addEventListener("click", (event) => { if (event.target === elements.watchDialog) closeVideo(); });
+elements.minimizePlayer.addEventListener("click", minimizeVideo);
+elements.expandPlayer.addEventListener("click", expandVideo);
+elements.shareCurrent.addEventListener("click", shareCurrentVideo);
+elements.watchDialog.addEventListener("click", (event) => {
+  if (event.target === elements.watchDialog && !elements.watchDialog.classList.contains("mini-player")) closeVideo();
+});
 elements.watchDialog.addEventListener("cancel", (event) => {
   event.preventDefault();
   closeVideo();
+});
+mobileViewport.addEventListener("change", (event) => {
+  if (!event.matches && elements.watchDialog.classList.contains("mini-player")) expandVideo();
+  if (!event.matches) elements.body.classList.remove("mobile-searching");
 });
 elements.favoriteCurrent.addEventListener("click", () => { if (currentVideo) toggleWatchLater(currentVideo); });
 elements.loadMoreComments.addEventListener("click", () => {
