@@ -232,8 +232,12 @@
 
   <dialog class="watch-dialog" id="watch-dialog">
     <div class="watch-shell">
-      <button class="dialog-minimize" id="minimize-player" type="button" aria-label="ย่อวิดีโอ">⌄</button>
-      <button class="dialog-expand" id="expand-player" type="button" aria-label="ขยายวิดีโอ">⤢</button>
+      <button class="dialog-minimize" id="minimize-player" type="button" aria-label="ย่อวิดีโอ">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="22" height="22" fill="currentColor"><path d="M12 15.7 5.3 9l1.4-1.4 5.3 5.3 5.3-5.3L18.7 9 12 15.7Z"/></svg>
+      </button>
+      <button class="dialog-expand" id="expand-player" type="button" aria-label="ขยายวิดีโอ">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" fill="currentColor"><path d="M5 5h5V3H3v7h2V5Zm14 0h-5V3h7v7h-2V5ZM5 19v-5H3v7h7v-2H5Zm14 0v-5h2v7h-7v-2h5Z"/></svg>
+      </button>
       <button class="dialog-close" id="close-player" type="button" aria-label="ปิดวิดีโอ">×</button>
       <div class="player-frame">
         <iframe id="youtube-player" title="YouTube video player"
@@ -241,14 +245,34 @@
                 referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
       </div>
       <div class="watch-meta">
-        <a class="channel-avatar" id="player-channel-avatar" target="_blank" rel="noopener noreferrer" aria-label="เปิดช่องบน YouTube">M</a>
-        <div class="watch-copy">
-          <h2 id="player-title"></h2>
-          <p><a class="player-channel-link" id="player-channel" target="_blank" rel="noopener noreferrer"></a><span aria-hidden="true"> • </span><span id="player-stats"></span></p>
+        <div class="watch-title-block">
+          <h2 class="watch-title" id="player-title"></h2>
+          <p class="watch-stats-row"><span id="player-stats"></span></p>
         </div>
-        <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
-        <button class="watch-action" id="share-current" type="button">↗ <span>แชร์</span></button>
-        <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
+        <div class="watch-channel-row">
+          <div class="channel-info-left">
+            <a class="channel-avatar" id="player-channel-avatar" target="_blank" rel="noopener noreferrer" aria-label="เปิดช่องบน YouTube">M</a>
+            <div class="channel-text-col">
+              <a class="player-channel-link" id="player-channel" target="_blank" rel="noopener noreferrer"></a>
+            </div>
+          </div>
+          <a class="subscribe-btn" id="channel-subscribe" target="_blank" rel="noopener noreferrer">ติดตาม</a>
+        </div>
+        <div class="watch-actions-bar">
+          <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
+          <button class="watch-action" id="share-current" type="button">↗ <span>แชร์</span></button>
+          <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
+        </div>
+      </div>
+      <div class="comments-teaser" id="comments-teaser" role="button" tabindex="0" aria-label="ดูความคิดเห็นทั้งหมด">
+        <div class="teaser-header">
+          <span>ความคิดเห็น <strong id="comments-teaser-count"></strong></span>
+          <span class="teaser-dots">•••</span>
+        </div>
+        <div class="teaser-body" id="teaser-body">
+          <div class="teaser-avatar" id="teaser-avatar">💬</div>
+          <p class="teaser-text" id="teaser-text">กำลังโหลดความคิดเห็น…</p>
+        </div>
       </div>
       <p class="ad-note">ตัวเล่นนี้ใช้ YouTube Embed โฆษณาอาจแสดงตามการตัดสินใจของ YouTube</p>
       <section class="comments-section" aria-labelledby="comments-heading">
