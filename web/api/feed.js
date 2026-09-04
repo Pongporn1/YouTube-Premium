@@ -1,4 +1,4 @@
-import { addChannelThumbnails, formatVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
+import { addChannelThumbnails, formatVideo, isStrictMusicVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
 import { requireSession } from "./auth/session-core.js";
 
 export default async function handler(request, response) {
@@ -8,16 +8,24 @@ export default async function handler(request, response) {
   }
   if (!requireSession(request, response)) return;
   try {
+    const category = normalizeCategory(request.query.category);
+    const isMusicCategory = category === "10";
     const data = await youtubeRequest("videos", {
       part: "snippet,contentDetails,statistics",
       chart: "mostPopular",
       regionCode: "TH",
-      maxResults: 24,
-      videoCategoryId: normalizeCategory(request.query.category),
+      maxResults: isMusicCategory ? 50 : 24,
+      videoCategoryId: category,
       pageToken: normalizePageToken(request.query.pageToken)
     });
     response.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");
-    const items = await addChannelThumbnails((data.items || []).map(formatVideo).filter(Boolean));
+    let rawItems = data.items || [];
+    if (isMusicCategory) {
+      rawItems = rawItems.filter(isStrictMusicVideo);
+    }
+    const formatted = rawItems.map(formatVideo).filter(Boolean);
+    const selected = isMusicCategory ? formatted.slice(0, 24) : formatted;
+    const items = await addChannelThumbnails(selected);
     return response.status(200).json({
       items,
       nextPageToken: String(data.nextPageToken || "")

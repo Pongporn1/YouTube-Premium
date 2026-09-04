@@ -1,4 +1,4 @@
-import { canonicalWatchUrl, privacyEmbedUrl } from "./video-utils.js";
+import { canonicalWatchUrl, isStrictMusicVideo, privacyEmbedUrl } from "./video-utils.js";
 import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
 
@@ -452,9 +452,10 @@ async function fetchVideos(url, { append = false } = {}) {
     if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
     if (requestId !== requestSerial || requestView !== activeView) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
-    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(incoming) : incoming;
+    const filteredIncoming = activeCategory === "10" ? incoming.filter(isStrictMusicVideo) : incoming;
+    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
     videos = append
-      ? [...new Map([...videos, ...incoming].map((video) => [video.id, video])).values()]
+      ? [...new Map([...videos, ...filteredIncoming].map((video) => [video.id, video])).values()]
       : initialItems;
     nextPageToken = String(data.nextPageToken || "");
     render();
