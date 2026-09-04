@@ -14,6 +14,7 @@ const MAX_PERSONALIZED_VIDEOS = 1000;
 const UPLOADS_PER_CHANNEL = 10;
 const PERSONALIZATION_REFRESH_MS = 15 * 60 * 1000;
 const PERSONALIZATION_WORKERS = 6;
+const MAX_SEARCH_QUERY_LENGTH = 100;
 
 const elements = {
   body: document.body,
@@ -193,6 +194,22 @@ function hasYouTubeConnection() {
 function matchesActiveCategory(video) {
   if (!activeCategory) return true;
   return String(video?.categoryId || "") === String(activeCategory);
+}
+
+function normalizeSearchQuery(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, MAX_SEARCH_QUERY_LENGTH);
+}
+
+function readSearchQuery() {
+  return normalizeSearchQuery(new URL(window.location.href).searchParams.get("q"));
+}
+
+function syncSearchLocation(query = "") {
+  const url = new URL(window.location.href);
+  const normalized = normalizeSearchQuery(query);
+  if (normalized) url.searchParams.set("q", normalized);
+  else url.searchParams.delete("q");
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
 }
 
 function savePersonalization() {
@@ -549,6 +566,7 @@ function activateView(view) {
     render();
   } else {
     activeQuery = "";
+    syncSearchLocation();
     activeCategory = "";
     elements.searchInput.value = "";
     [...elements.chips.querySelectorAll("[data-category]")].forEach((button) => button.classList.toggle("active", !button.dataset.category));
@@ -1044,6 +1062,29 @@ function toggleAccountMenu(force) {
   elements.mobileAccountButton.setAttribute("aria-expanded", String(shouldOpen));
 }
 
+function performSearch(value = elements.searchInput.value, { syncUrl = true } = {}) {
+  const query = normalizeSearchQuery(value);
+  elements.searchInput.value = query;
+  if (!query) {
+    activateView("home");
+    return;
+  }
+  activeView = "search";
+  activeQuery = query;
+  activeCategory = "";
+  elements.body.dataset.view = "search";
+  elements.navButtons.forEach((button) => button.classList.remove("active"));
+  elements.chips.hidden = true;
+  elements.historyTools.hidden = true;
+  elements.importMessage.hidden = true;
+  elements.title.textContent = `ผลค้นหา “${query}”`;
+  elements.eyebrow.textContent = "SEARCH RESULTS";
+  if (syncUrl) syncSearchLocation(query);
+  if (mobileViewport.matches) elements.body.classList.add("mobile-searching");
+  fetchVideos(videoRequestUrl());
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function unlockApp(user) {
   const label = String(user?.name || "MyTube").trim();
   const initials = userInitials(label);
@@ -1058,7 +1099,9 @@ function unlockApp(user) {
   setAccountAvatar(elements.mobileAvatarImage, elements.mobileAvatarFallback, picture, initials);
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
-  fetchVideos("/api/feed");
+  const initialQuery = readSearchQuery();
+  if (initialQuery) performSearch(initialQuery, { syncUrl: false });
+  else fetchVideos("/api/feed");
   scheduleAutomaticPersonalizationSync();
 }
 
@@ -1514,33 +1557,29 @@ document.addEventListener("keydown", (event) => {
     trigger?.focus();
   }
 });
+elements.searchForm.addEventListener("click", (event) => {
+  if (!mobileViewport.matches || elements.body.classList.contains("mobile-searching")) return;
+  if (!event.target.closest("button[type=submit]") || elements.searchInput.value.trim()) return;
+  event.preventDefault();
+  elements.body.classList.add("mobile-searching");
+  elements.searchInput.focus({ preventScroll: true });
+});
 elements.searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  const query = elements.searchInput.value.trim();
+  const query = normalizeSearchQuery(elements.searchInput.value);
   if (mobileViewport.matches && !elements.body.classList.contains("mobile-searching") && !query) {
     elements.body.classList.add("mobile-searching");
-    elements.searchInput.focus();
+    elements.searchInput.focus({ preventScroll: true });
     return;
   }
-  elements.body.classList.remove("mobile-searching");
-  if (!query) return activateView("home");
-  activeView = "search";
-  elements.body.dataset.view = "search";
-  activeQuery = query;
-  elements.navButtons.forEach((button) => button.classList.remove("active"));
-  elements.chips.hidden = true;
-  elements.historyTools.hidden = true;
-  elements.importMessage.hidden = true;
-  elements.title.textContent = `ผลค้นหา “${query}”`;
-  elements.eyebrow.textContent = "SEARCH RESULTS";
-  fetchVideos(videoRequestUrl());
+  performSearch(query);
 });
 elements.mobileSearchClose.addEventListener("click", () => {
-  elements.body.classList.remove("mobile-searching");
-  elements.searchInput.blur();
-});
-
-elements.mobileSearchClose.addEventListener("click", () => {
+  if (activeView === "search") {
+    elements.searchInput.value = "";
+    activateView("home");
+    return;
+  }
   elements.body.classList.remove("mobile-searching");
   elements.searchInput.blur();
 });
