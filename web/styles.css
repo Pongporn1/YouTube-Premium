@@ -1186,15 +1186,21 @@ body[data-view="home"] .feed-section { padding-top: 16px; }
     max-height: none;
     margin: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
     background: #0f0f0f;
     border-radius: 0;
   }
   .watch-dialog:not(.mini-player) .watch-shell { min-height: 100%; border-radius: 0; }
-  .watch-dialog:not(.mini-player) .player-frame { border-radius: 0; }
+  .watch-dialog:not(.mini-player) .player-frame {
+    position: relative;
+    z-index: auto;
+    border-radius: 0;
+  }
   .watch-dialog:not(.mini-player) .dialog-close,
   .watch-dialog:not(.mini-player) .dialog-minimize {
     position: fixed;
-    z-index: 5;
+    z-index: 30;
     top: max(10px, env(safe-area-inset-top));
     width: 40px;
     height: 40px;
