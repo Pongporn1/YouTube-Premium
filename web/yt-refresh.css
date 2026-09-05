@@ -193,7 +193,64 @@ body {
 
 .ad-note { display: none; }
 
-/* ── Immersive scrolling: bars slide out on scroll down, return on up ──── */
+/* ── Native-controls escape hatch (quality / fullscreen) ───────────────── */
+.player-settings {
+  position: absolute;
+  z-index: 4;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, .55);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.player-settings svg { width: 17px; height: 17px; fill: currentColor; }
+
+.player-settings[aria-pressed="true"] { background: rgba(255, 0, 51, .78); }
+
+body.native-player .player-gesture { display: none; }
+
+.mini-player .player-settings { display: none; }
+
+@media (min-width: 681px) {
+  .player-settings { display: none; }
+}
+
+/* Tap feedback inside the gesture layer */
+.gesture-flash {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgba(0, 0, 0, .55);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gesture-flash svg { width: 30px; height: 30px; fill: #fff; }
+
+.gesture-flash.show { animation: gesture-flash 700ms ease-out; }
+
+@keyframes gesture-flash {
+  0% { opacity: 0; }
+  15% { opacity: 1; }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 @media (max-width: 680px) {
   .topbar,
   .bottom-nav { transition: transform 220ms cubic-bezier(.2, .7, .3, 1); }

@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/youtube-layout.css">
-  <link rel="stylesheet" href="/yt-refresh.css?v=5">
+  <link rel="stylesheet" href="/yt-refresh.css?v=6">
 </head>
 <body class="auth-pending" data-view="home">
   <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
@@ -268,6 +268,11 @@
         <iframe id="youtube-player" title="YouTube video player"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                 referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        <button class="player-settings" id="player-settings" type="button"
+                aria-label="โหมดปุ่มเนทีฟของ YouTube (ปรับความคมชัด เต็มจอ)" aria-pressed="false"
+                title="เปิดโหมดปุ่มเนทีฟของ YouTube (ปรับความคมชัด เต็มจอ)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.49.42l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.2 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.05.3-.07.63-.07.94s.02.64.07.94L2.35 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.14.24.42.34.68.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.26.42.5.42h3.84c.24 0 .45-.18.49-.42l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.26.11.55 0 .68-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.01-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z"/></svg>
+        </button>
       </div>
       <div class="watch-meta">
         <div class="watch-title-block">
