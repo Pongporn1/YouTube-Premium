@@ -86,22 +86,49 @@ body { font-size: 14px; line-height: 1.4; }
   body.sidebar-collapsed .sidebar .nav-item { height: 74px; padding: 12px 0; font-size: 10px; line-height: 14px; }
 }
 @media (max-width: 680px) {
+  :root { --topbar: calc(56px + env(safe-area-inset-top)); --mobile-nav-height: 60px; }
+  html { -webkit-text-size-adjust: 100%; scroll-padding-top: calc(var(--topbar) + 52px); }
+  body { padding-bottom: 0; }
+  .topbar { padding-top: env(safe-area-inset-top); padding-inline: 12px; }
+  .topbar .round-button, .search-form, .search-form button { min-height: 44px; }
   .brand strong { font-size: 22px; }
-  .chips { gap: 8px; padding-block: 8px; min-height: 48px; }
-  .video-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .brand-mark { width: 32px; height: 23px; }
+  .chips { gap: 8px; padding: 8px 12px 12px; min-height: 52px; background: #0f0f0f; }
+  .chip { font-size: 14px; line-height: 20px; min-height: 34px; padding: 6px 12px; border-radius: 8px; }
+  .content-shell { padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 16px); }
+  body[data-view="home"] .feed-section { padding-top: 0; }
+  .video-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .thumbnail-wrap { margin-inline: 0; }
   .thumbnail-button { border-radius: 0; }
-  .card-body { padding: 12px 12px 0; grid-template-columns: 36px minmax(0,1fr) 24px; gap: 12px; }
-  .channel-avatar { width: 36px; height: 36px; }
-  .card-copy h2 { font-size: 14px; line-height: 20px; font-weight: 500; }
-  .card-copy p, .channel-link { font-size: 12px; line-height: 18px; }
+  .card-body { padding: 12px 4px 4px 12px; grid-template-columns: 40px minmax(0,1fr) 36px; gap: 10px; }
+  .channel-avatar { width: 40px; height: 40px; }
+  .card-copy h2 { font-size: 16px; line-height: 22px; font-weight: 500; margin-bottom: 4px; }
+  .card-copy p, .channel-link { font-size: 13px; line-height: 19px; }
+  .card-body > button { width: 36px; min-height: 44px; }
+  .duration { right: 8px; bottom: 8px; padding: 1px 4px; font-size: 12px; }
+  .recommendation-reason { font-size: 10px; max-width: 70%; padding: 3px 6px; }
   .bottom-nav { background: #0f0f0f; box-shadow: none; backdrop-filter: none; }
-  .bottom-nav .mobile-create-icon { border: 0; width: 36px; height: 36px; background: #272727; }
+  .bottom-nav button, .bottom-nav a { min-height: 56px; font-size: 11px; gap: 4px; }
+  .bottom-nav svg { width: 26px; height: 26px; }
+  .bottom-nav .mobile-create-icon { border: 0; width: 40px; height: 40px; background: #272727; }
+  .mobile-avatar { width: 28px; height: 28px; }
   .data-source-note { margin-inline: 12px; font-size: 11px; }
   .youtube-collection { margin-inline: 12px; }
   .feed-heading h1 { font-size: 24px; }
   .account-menu { border-radius: 16px 16px 0 0; }
   .account-action { min-height: 52px; font-size: 15px; padding-inline: 24px; }
+  .watch-copy h2 { font-size: 19px; line-height: 26px; font-weight: 600; }
+  .watch-copy p { font-size: 13px; line-height: 20px; }
+  .watch-meta { padding: 16px 12px 12px; }
+  .watch-action { min-height: 44px; border-radius: 24px; font-size: 14px; }
+  .comments-section { padding: 16px 12px 28px; }
+  .comments-heading { gap: 12px; flex-wrap: wrap; }
+  .comments-heading h3 { font-size: 18px; }
+  .comment-copy { font-size: 14px; line-height: 21px; }
+  .mini-player .player-frame { aspect-ratio: 16 / 9; }
+  .search-filters select { min-height: 44px; font-size: 14px; }
+  .music-library-shortcuts strong { font-size: 17px; }
+  .music-library-shortcuts button { min-height: 44px; font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
