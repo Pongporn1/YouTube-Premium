@@ -1947,7 +1947,7 @@ function consumeAuthError() {
   const code = url.searchParams.get("auth_error");
   if (!code) return "";
   url.searchParams.delete("auth_error");
-  history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+  window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
   return code === "not_allowed"
     ? "บัญชี Google นี้ไม่ได้รับอนุญาต"
     : "ยืนยันบัญชี Google ไม่สำเร็จ กรุณาลองอีกครั้ง";
@@ -1959,7 +1959,9 @@ async function initializeAuth() {
     if (youtubeReturnMarker) {
       const clean = new URL(window.location.href);
       clean.searchParams.delete("youtube");
-      history.replaceState(null, "", `${clean.pathname}${clean.search}${clean.hash}`);
+      // The module-level `history` variable is the watch-history array, so the
+      // browser History API must be reached through `window`.
+      window.history.replaceState(null, "", `${clean.pathname}${clean.search}${clean.hash}`);
     }
     const sessionResponse = await fetch("/api/auth/session", { headers: { Accept: "application/json" } });
     const session = await sessionResponse.json().catch(() => ({}));
