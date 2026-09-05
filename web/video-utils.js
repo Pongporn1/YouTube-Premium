@@ -39,11 +39,18 @@ export function canonicalWatchUrl(videoId) {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
-export function privacyEmbedUrl(videoId) {
+export function privacyEmbedUrl(videoId, origin = globalThis.location?.origin ?? "") {
   if (!VIDEO_ID_PATTERN.test(videoId)) {
     throw new TypeError("Invalid YouTube video ID.");
   }
-  return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&playsinline=1`;
+  const params = new URLSearchParams({ autoplay: "1", rel: "0", playsinline: "1" });
+  // enablejsapi + origin let the page send play/pause/seek commands and
+  // receive player state, which powers the tap controls over the iframe.
+  if (origin) {
+    params.set("enablejsapi", "1");
+    params.set("origin", origin);
+  }
+  return `https://www.youtube-nocookie.com/embed/${videoId}?${params}`;
 }
 
 export function isSearchQuery(value) {

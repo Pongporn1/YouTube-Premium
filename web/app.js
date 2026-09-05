@@ -1208,6 +1208,7 @@ function openVideo(video) {
   currentVideo = video;
   addHistory(video);
   elements.player.src = privacyEmbedUrl(video.id);
+  playerAssumedPlaying = true;
   elements.playerTitle.textContent = video.title;
   elements.playerChannel.textContent = video.channel;
   elements.playerStats.textContent = [formatViews(video.views), formatAge(video.publishedAt)].filter(Boolean).join(" • ");
@@ -2227,40 +2228,123 @@ elements.expandPlayer.addEventListener("click", (event) => {
   event.stopPropagation();
   expandVideo();
 });
-// YouTube-app sheet gestures: drag the watch page down to shrink it into the
-// mini player, then swipe up/down on the mini player to expand or dismiss.
-// Touches on the cross-origin player iframe never reach this document, so a
-// dedicated overlay handles the gesture over the video surface.
+// enablejsapi bridge: the page tracks play state and sends commands to the
+// cross-origin player (tap to pause/play, double-tap to seek).
+let playerAssumedPlaying = true;
+let playerCurrentTime = 0;
+function playerCommand(func, args = []) {
+  elements.player.contentWindow?.postMessage(
+    JSON.stringify({ event: "command", func, args }), "*");
+}
+window.addEventListener("message", (event) => {
+  if (event.origin !== "https://www.youtube-nocookie.com" && event.origin !== "https://www.youtube.com") return;
+  try {
+    const payload = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+    if (payload?.event === "infoDelivery" && payload.info && typeof payload.info.playerState === "number") {
+      playerAssumedPlaying = payload.info.playerState === 1;
+      if (typeof payload.info.currentTime === "number") playerCurrentTime = payload.info.currentTime;
+    }
+  } catch { /* non-JSON player messages are ignored */ }
+});
+elements.player.addEventListener("load", () => {
+  const announce = () => {
+    try {
+      elements.player.contentWindow?.postMessage(
+        JSON.stringify({ event: "listening", id: 1, channel: "widget" }), "*");
+    } catch { /* the frame may not be ready yet */ }
+  };
+  announce();
+  window.setTimeout(announce, 600);
+});
+// YouTube-app sheet gestures plus tap controls over the player surface.
+// Touches on the cross-origin player iframe never reach this document, so the
+// dedicated overlay handles both the gestures and the tap controls.
 const playerFrame = document.querySelector(".player-frame");
 if (playerFrame) {
   const gestureLayer = document.createElement("div");
   gestureLayer.className = "player-gesture";
   gestureLayer.setAttribute("aria-hidden", "true");
+  const gestureFlash = document.createElement("div");
+  gestureFlash.className = "gesture-flash";
+  gestureLayer.appendChild(gestureFlash);
   playerFrame.appendChild(gestureLayer);
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M8 5h3v14H8zM13 5h3v14h-3z"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5-11-6.5Z"/></svg>';
+  function flashPlayerIcon(icon) {
+    gestureFlash.innerHTML = icon;
+    gestureFlash.classList.remove("show");
+    void gestureFlash.offsetWidth;
+    gestureFlash.classList.add("show");
+  }
+  let gestureStartX = 0;
   let gestureStartY = 0;
+  let gestureStartTime = 0;
+  let gestureMoved = false;
   let gestureLastDy = 0;
   let gestureLive = false;
+  let lastTapTime = 0;
+  let tapToggleTimer = 0;
   gestureLayer.addEventListener("touchstart", (event) => {
+    gestureStartX = event.touches[0].clientX;
     gestureStartY = event.touches[0].clientY;
+    gestureStartTime = Date.now();
+    gestureMoved = false;
     gestureLastDy = 0;
     gestureLive = true;
   }, { passive: true });
   gestureLayer.addEventListener("touchmove", (event) => {
     if (!gestureLive || !elements.watchDialog.open) return;
-    gestureLastDy = event.touches[0].clientY - gestureStartY;
-    if (!elements.watchDialog.classList.contains("mini-player") && gestureLastDy > 14) {
+    const dy = event.touches[0].clientY - gestureStartY;
+    const dx = event.touches[0].clientX - gestureStartX;
+    if (Math.abs(dy) > 14 || Math.abs(dx) > 14) gestureMoved = true;
+    gestureLastDy = dy;
+    if (!elements.watchDialog.classList.contains("mini-player") && dy > 14) {
       event.preventDefault();
       elements.watchDialog.classList.add("dragging");
-      elements.watchDialog.style.transform = `translateY(${Math.min(gestureLastDy, 420)}px)`;
+      elements.watchDialog.style.transform = `translateY(${Math.min(dy, 420)}px)`;
     }
   }, { passive: false });
-  gestureLayer.addEventListener("touchend", () => {
+  gestureLayer.addEventListener("touchend", (event) => {
     if (!gestureLive) return;
     gestureLive = false;
-    if (!elements.watchDialog.classList.contains("mini-player")) {
+    const mini = elements.watchDialog.classList.contains("mini-player");
+    if (!mini) {
       elements.watchDialog.classList.remove("dragging");
       elements.watchDialog.style.transform = "";
-      if (gestureLastDy > 90) minimizeVideo();
+      if (gestureLastDy > 90) {
+        minimizeVideo();
+        return;
+      }
+      const elapsed = Date.now() - gestureStartTime;
+      if (gestureMoved || elapsed > 350) {
+        lastTapTime = 0;
+        return;
+      }
+      const now = Date.now();
+      if (now - lastTapTime < 320) {
+        clearTimeout(tapToggleTimer);
+        lastTapTime = 0;
+        const tapX = event.changedTouches?.[0]?.clientX ?? gestureStartX;
+        if (playerCurrentTime > 0) {
+          const direction = tapX < window.innerWidth / 2 ? -10 : 10;
+          playerCommand("seekTo", [Math.max(0, playerCurrentTime + direction), true]);
+        }
+        return;
+      }
+      lastTapTime = now;
+      tapToggleTimer = window.setTimeout(() => {
+        tapToggleTimer = 0;
+        if (playerAssumedPlaying) {
+          playerCommand("pauseVideo");
+          playerAssumedPlaying = false;
+          flashPlayerIcon(ICON_PAUSE);
+        } else {
+          playerCommand("playVideo");
+          playerAssumedPlaying = true;
+          flashPlayerIcon(ICON_PLAY);
+        }
+        gestureLayer.dataset.playerState = playerAssumedPlaying ? "playing" : "paused";
+      }, 290);
     } else if (gestureLastDy < -40) {
       expandVideo();
     } else if (gestureLastDy > 40) {
