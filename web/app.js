@@ -1078,6 +1078,38 @@ function createRelatedCard(video) {
   return card;
 }
 
+function dedupeById(items) {
+  const seen = new Set();
+  return items.filter((item) => {
+    if (!item?.id || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
+
+// The viewer's own pool (subscription uploads + liked videos) stands in for
+// YouTube's private up-next ranking: the same artist leads, then the same
+// category from channels they actually follow or liked. Costs no quota.
+function personalRelated(video, existing) {
+  if (!video || !hasYouTubeConnection()) return [];
+  const existingIds = new Set(existing.map((item) => item.id));
+  const channelId = String(video.channelId || "");
+  const categoryId = String(video.categoryId || "");
+  const watchedChannels = new Set(history.slice(0, 150).map((item) => String(item?.channelId || "")).filter(Boolean));
+  return personalization.items
+    .filter((item) => item.id !== video.id && !existingIds.has(item.id))
+    .map((item) => ({
+      item,
+      score: (channelId && String(item.channelId || "") === channelId ? 3 : 0)
+        + (categoryId && String(item.categoryId || "") === categoryId ? 2 : 0)
+        + (watchedChannels.has(String(item.channelId || "")) ? 1 : 0)
+    }))
+    .filter((entry) => entry.score >= 2)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.item)
+    .slice(0, 20);
+}
+
 // Cheap recommendations come first: same-category videos already in the feed
 // cost nothing. The uploads playlist call happens only when more are needed.
 function fillRelatedFromFeed(video) {
@@ -1104,8 +1136,11 @@ async function loadRelated(videoId, { append = false } = {}) {
     relatedNextPageToken = "";
     relatedVideoId = videoId;
     renderRelated();
-    // Same-category items already in the feed cost no quota at all.
+    // Same-category items already in the feed cost no quota at all, and the
+    // viewer's own pool keeps the list alive even if the API call fails.
     fillRelatedFromFeed(currentVideo);
+    relatedVideos = dedupeById([...personalRelated(currentVideo, relatedVideos), ...relatedVideos]);
+    renderRelated();
   }
   if (quotaActive()) {
     elements.relatedStatus.textContent = relatedVideos.length
@@ -1145,9 +1180,11 @@ async function loadRelated(videoId, { append = false } = {}) {
     }
     if (requestId !== relatedSerial || relatedVideoId !== videoId || currentVideo?.id !== videoId) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
+    // Artist uploads from the API lead, then the viewer's own pool, then the
+    // same-category feed leftovers picked up before the call.
     relatedVideos = append
-      ? [...new Map([...relatedVideos, ...incoming].map((video) => [video.id, video])).values()]
-      : [...new Map([...relatedVideos, ...incoming].map((video) => [video.id, video])).values()];
+      ? dedupeById([...relatedVideos, ...incoming])
+      : dedupeById([...incoming, ...relatedVideos]);
     relatedNextPageToken = String(data.nextPageToken || "");
     renderRelated();
     elements.relatedStatus.textContent = relatedVideos.length ? "" : "ยังไม่มีวิดีโอแนะนำสำหรับวิดีโอนี้";
