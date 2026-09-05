@@ -163,6 +163,20 @@ body {
   font-size: 13.5px;
 }
 
+.watch-action svg,
+.music-library-shortcuts button svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
+.music-library-shortcuts button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
 /* Player overlay buttons: one tidy row, YouTube-app style */
 .dialog-minimize,
 .dialog-expand {

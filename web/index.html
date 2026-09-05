@@ -11,7 +11,7 @@
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/styles.css">
   <link rel="stylesheet" href="/youtube-layout.css">
-  <link rel="stylesheet" href="/yt-refresh.css?v=1">
+  <link rel="stylesheet" href="/yt-refresh.css?v=2">
 </head>
 <body class="auth-pending" data-view="home">
   <section class="auth-gate" id="auth-gate" aria-labelledby="auth-title">
@@ -169,8 +169,8 @@
 
     <section class="music-library-shortcuts" id="music-library-shortcuts" aria-label="คลังเพลงของฉัน" hidden>
       <div><strong>คลังเพลงของฉัน</strong><small>เปิดเพลย์ลิสต์และวิดีโอที่ชอบจากบัญชี YouTube</small></div>
-      <button type="button" data-view="playlists">☷ เพลย์ลิสต์ของฉัน</button>
-      <button type="button" data-view="liked">♡ วิดีโอที่ชอบ</button>
+      <button type="button" data-view="playlists"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11v2H4V5Zm0 4h11v2H4V9Zm0 4h7v2H4v-2Zm12-1 5 3-5 3v-6Z"/></svg> เพลย์ลิสต์ของฉัน</button>
+      <button type="button" data-view="liked"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5V9h4v12Zm2 0V9l4-6 2 1v5h4v3l-3 9h-7Z"/></svg> วิดีโอที่ชอบ</button>
     </section>
     <section class="feed-section" aria-labelledby="feed-title">
       <div class="feed-heading">
@@ -284,9 +284,9 @@
           <a class="subscribe-btn" id="channel-subscribe" target="_blank" rel="noopener noreferrer">ติดตาม</a>
         </div>
         <div class="watch-actions-bar">
-          <button class="watch-action" id="favorite-current" type="button">▣ <span>ดูภายหลัง</span></button>
-          <button class="watch-action" id="share-current" type="button">↗ <span>แชร์</span></button>
-          <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer">↗ <span>YouTube</span></a>
+          <button class="watch-action" id="favorite-current" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-9 9 9 9 0 0 1 9-9Zm0 2a7 7 0 1 0 7 7 7 7 0 0 0-7-7Zm1 2v4.6l3.5 2.1-1 1.7-4.5-2.7V7h2Z"/></svg><span>ดูภายหลัง</span></button>
+          <button class="watch-action" id="share-current" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5.6 20.4 10 15 14.4v-3.1c-3.5.1-6.2 1.4-8 3.9.4-4.4 3.5-7.5 8-7.6V5.6Z"/></svg><span>แชร์</span></button>
+          <a class="watch-action" id="open-youtube" href="https://www.youtube.com/" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.6A3 3 0 0 0 .5 6.2 31.2 31.2 0 0 0 0 12a31.2 31.2 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.6 9.4.6 9.4.6s7.5 0 9.4-.6a3 3 0 0 0 2.1-2.1A31.2 31.2 0 0 0 24 12a31.2 31.2 0 0 0-.5-5.8ZM9.6 15.6V8.4L15.8 12l-6.2 3.6Z"/></svg><span>YouTube</span></a>
         </div>
       </div>
       <div class="comments-teaser" id="comments-teaser" role="button" tabindex="0" aria-label="ดูความคิดเห็นทั้งหมด">
