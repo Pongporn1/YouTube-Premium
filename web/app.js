@@ -557,6 +557,7 @@ async function prefetchFeedPages(maxPages = 3) {
 }
 
 function activateView(view) {
+  document.getElementById("music-library-shortcuts").hidden = true;
   libraryNextToken = "";
   libraryBusy = false;
   loadLibraryPage.hidden = true;
@@ -1253,6 +1254,7 @@ function toggleAccountMenu(force) {
 }
 
 function performSearch(value = elements.searchInput.value, { syncUrl = true } = {}) {
+  document.getElementById("music-library-shortcuts").hidden = true;
   libraryBusy = false;
   loadLibraryPage.hidden = true;
   authorizeLibrary.hidden = true;
@@ -1797,6 +1799,7 @@ elements.mobileSearchClose.addEventListener("click", () => {
 
 function selectCategory(button) {
   activeCategory = button.dataset.category;
+  document.getElementById("music-library-shortcuts").hidden = activeCategory !== "10";
   [...elements.chips.querySelectorAll("[data-category]")].forEach((item) => item.classList.toggle("active", item === button));
   elements.title.textContent = activeCategory ? button.textContent : "กำลังมาแรงในไทย";
   fetchVideos(videoRequestUrl());

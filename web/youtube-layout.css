@@ -1,4 +1,15 @@
 /* Shared visual language; player and account interaction rules stay in styles.css. */
+.music-library-shortcuts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 0 8px; }
+.music-library-shortcuts > div { margin-right: auto; }
+.music-library-shortcuts strong { display: block; font-size: 18px; }
+.music-library-shortcuts small { display: block; margin-top: 4px; color: #aaa; font-size: 12px; }
+.music-library-shortcuts button { min-height: 40px; padding: 8px 16px; color: #f1f1f1; background: #272727; border: 1px solid #444; border-radius: 20px; cursor: pointer; }
+.music-library-shortcuts button:hover { background: #3f3f3f; }
+@media (max-width: 680px) {
+  .music-library-shortcuts { padding: 12px; gap: 8px; }
+  .music-library-shortcuts > div { width: 100%; margin-bottom: 4px; }
+  .music-library-shortcuts button { flex: 1 1 auto; font-size: 13px; }
+}
 /* Root-level overlay escapes the header's backdrop-filter containing block. */
 .account-menu { z-index: 220; max-height: calc(100dvh - var(--topbar) - 24px); overflow-y: auto; }
 .account-close { position: sticky; top: 8px; z-index: 1; display: grid; place-items: center; margin: 8px 8px -44px auto; width: 36px; height: 36px; border: 0; border-radius: 50%; color: #fff; background: #383838; font-size: 26px; cursor: pointer; }
