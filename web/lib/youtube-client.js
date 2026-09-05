@@ -127,13 +127,44 @@ export async function addChannelThumbnails(videos, now = Date.now()) {
   }));
 }
 
+// Each Google Cloud project carries its own daily 10k-unit YouTube quota.
+// Keys are read from YOUTUBE_API_KEY plus the comma-separated YOUTUBE_API_KEYS
+// (and YOUTUBE_API_KEY_2/_3 for convenience). When one project reports its
+// quota as spent the next key takes over; warm instances remember which key
+// is currently alive so a spent key costs no extra calls.
+const KEY_ENV_NAMES = ["YOUTUBE_API_KEY", "YOUTUBE_API_KEY_2", "YOUTUBE_API_KEY_3", "YOUTUBE_API_KEYS"];
+let activeKeyIndex = 0;
+
+function apiKeys() {
+  const values = KEY_ENV_NAMES
+    .flatMap((name) => String(process.env[name] || "").split(","))
+    .map((key) => key.trim())
+    .filter(Boolean);
+  return [...new Set(values)];
+}
+
 export async function youtubeRequest(resource, parameters) {
-  const key = process.env.YOUTUBE_API_KEY;
-  if (!key) {
+  const keys = apiKeys();
+  if (!keys.length) {
     const error = new Error("เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า YouTube API key");
     error.statusCode = 503;
     throw error;
   }
+  const startIndex = Math.min(activeKeyIndex, keys.length - 1);
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const keyIndex = (startIndex + attempt) % keys.length;
+    try {
+      const data = await fetchFromYouTube(keys[keyIndex], resource, parameters);
+      activeKeyIndex = keyIndex;
+      return data;
+    } catch (error) {
+      const quotaSpent = ["quotaExceeded", "dailyLimitExceeded"].includes(error.reason);
+      if (!quotaSpent || attempt === keys.length - 1) throw error;
+    }
+  }
+}
+
+async function fetchFromYouTube(key, resource, parameters) {
   const url = new URL(`${YOUTUBE_API_URL}/${resource}`);
   Object.entries({ ...parameters, key }).forEach(([name, value]) => {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));

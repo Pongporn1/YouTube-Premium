@@ -18,7 +18,7 @@ export default async function handler(request, response) {
       videoCategoryId: category,
       pageToken: normalizePageToken(request.query.pageToken)
     });
-    response.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");
+    response.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=86400");
     let rawItems = data.items || [];
     if (isMusicCategory) {
       rawItems = rawItems.filter(isStrictMusicVideo);
