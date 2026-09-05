@@ -121,8 +121,10 @@ export async function youtubeRequest(resource, parameters) {
       const reason = String(data?.error?.errors?.[0]?.reason || "");
       const error = new Error(reason === "commentsDisabled"
         ? "วิดีโอนี้ปิดความคิดเห็นไว้"
-        : response.status === 403
-          ? "โควต้า YouTube API ไม่พร้อมใช้งาน"
+        : ["quotaExceeded", "dailyLimitExceeded"].includes(reason)
+          ? "โควตา YouTube API เต็ม ยังดึงข้อมูลใหม่ไม่ได้"
+          : response.status === 403
+            ? "YouTube ปฏิเสธสิทธิ์เรียกข้อมูล กรุณาตรวจการตั้งค่า API"
           : "YouTube API ตอบกลับไม่สำเร็จ");
       error.statusCode = response.status === 429 ? 429 : reason === "commentsDisabled" ? 403 : 502;
       error.reason = reason;

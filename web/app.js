@@ -2,6 +2,13 @@ import { canonicalWatchUrl, isStrictMusicVideo, privacyEmbedUrl } from "./video-
 import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
 import { readAccountPage, mergeFreshMetadata } from "./youtube-library.js";
+import { createResultCache } from "./result-cache.js";
+const resultCache = createResultCache({
+  getItem: key => sessionStorage.getItem(key),
+  setItem: (key, value) => sessionStorage.setItem(key, value),
+  removeItem: key => sessionStorage.removeItem(key)
+});
+let cacheOwner = "";
 
 const WATCH_LATER_KEY = "mytube-private-watch-later-v3";
 const LEGACY_FAVORITES_KEY = "mytube-private-favorites-v2";
@@ -13,7 +20,7 @@ const MAX_YOUTUBE_PAGES = 100;
 const MAX_SUBSCRIPTION_CHANNELS = 250;
 const MAX_PERSONALIZED_VIDEOS = 1000;
 const UPLOADS_PER_CHANNEL = 10;
-const PERSONALIZATION_REFRESH_MS = 15 * 60 * 1000;
+const PERSONALIZATION_REFRESH_MS = 6 * 60 * 60 * 1000;
 const PERSONALIZATION_WORKERS = 6;
 const MAX_SEARCH_QUERY_LENGTH = 100;
 const ACCOUNT_VIEWS = ["subscriptions", "liked", "playlists", "playlist"];
@@ -478,6 +485,9 @@ function videoRequestUrl(pageToken = "") {
 }
 
 async function fetchVideos(url, { append = false } = {}) {
+  const parsedUrl = new URL(url, location.origin);
+  const cacheKey = parsedUrl.pathname + "?" + parsedUrl.searchParams.toString();
+  const cached = resultCache.get(cacheOwner, cacheKey);
   if (append && loadingMore) return;
   if (!append) {
     requestController?.abort();
@@ -494,10 +504,14 @@ async function fetchVideos(url, { append = false } = {}) {
     setStatus("กำลังโหลดวิดีโอ…");
   }
   try {
-    const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
+    let data = cached?.fresh ? cached.data : null;
+    if (!data) {
+      const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+      data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
+    }
     if (requestId !== requestSerial || requestView !== activeView) return;
+    if (!cached?.fresh) resultCache.put(cacheOwner, cacheKey, data);
     const incoming = Array.isArray(data.items) ? data.items : [];
     const filteredIncoming = incoming.filter(matchesActiveCategory).filter((video) => activeCategory !== "10" || isStrictMusicVideo(video));
     const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
@@ -506,22 +520,22 @@ async function fetchVideos(url, { append = false } = {}) {
       : initialItems;
     nextPageToken = String(data.nextPageToken || "");
     render();
+    sourceNote.textContent = cached?.fresh ? "ข้อมูล YouTube ที่บันทึกไว้ไม่เกิน 10 นาที" : "ข้อมูลล่าสุดจาก YouTube • ฟีดจัดเรียงโดย MyTube";
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestId !== requestSerial || requestView !== activeView) return;
     if (!append) {
-      videos = [];
+      videos = cached?.data.items || [];
       render();
     }
+    nextPageToken = "";
+    sourceNote.textContent = `${error.message} • ${videos.length || (activeView === "home" && personalization.items?.length) ? "แสดงข้อมูลที่บันทึกไว้ ไม่ใช่ข้อมูลอัปเดตใหม่" : "ยังไม่มีข้อมูลสำรองสำหรับรายการนี้"}`;
     setStatus(error.message || "โหลดรายการไม่สำเร็จ กรุณาลองใหม่", true);
   } finally {
     if (requestController === controller) requestController = null;
     if (requestId === requestSerial) {
       loadingMore = false;
       elements.feedLoader.hidden = true;
-      if (!append && nextPageToken && activeView === "home") {
-        window.setTimeout(() => { void prefetchFeedPages(); }, 0);
-      }
       elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
     }
   }
@@ -640,9 +654,25 @@ async function loadLiveLibrary({ append = false, token = "" } = {}) {
   if (libraryBusy) return;
   const view = activeView;
   if (!ACCOUNT_VIEWS.includes(view) && view !== "channel") return;
+  const resourceId = ["playlist", "channel"].includes(view) ? libraryContext.id : "";
+  const cacheKey = `library:${view}:${resourceId}:${append ? libraryNextToken : ""}`;
+  const cached = resultCache.get(cacheOwner, cacheKey);
+  const showCachedLibrary = (canContinue = false) => {
+    libraryItems = append ? [...libraryItems, ...cached.data.items] : cached.data.items;
+    libraryNextToken = canContinue ? cached.data.nextPageToken : "";
+    if (cached.data.kind === "videos") { videos = libraryItems; render(); }
+    else elements.grid.replaceChildren(...libraryItems.map(createCollectionCard));
+    elements.grid.setAttribute("aria-busy", "false");
+    elements.empty.hidden = libraryItems.length > 0;
+    loadLibraryPage.hidden = !libraryNextToken;
+    sourceNote.textContent = `ข้อมูลที่บันทึกไว้ ${new Date(cached.at).toLocaleString("th-TH")} • อาจยังไม่ใช่รายการล่าสุด`;
+    setStatus(`${libraryItems.length} รายการที่บันทึกไว้`);
+  };
+  if (cached?.fresh && (view === "channel" || token || validYouTubeToken())) { showCachedLibrary(true); return; }
   if (view !== "channel" && !token && !validYouTubeToken()) {
+    if (cached) showCachedLibrary();
     authorizeLibrary.hidden = false;
-    sourceNote.textContent = "เชื่อมบัญชี YouTube เพื่ออ่านรายการล่าสุดแบบอ่านอย่างเดียว";
+    if (!cached) sourceNote.textContent = "เชื่อมบัญชี YouTube เพื่ออ่านรายการล่าสุดแบบอ่านอย่างเดียว";
     setStatus("ต้องอนุญาตอ่าน YouTube ในแท็บนี้ก่อนโหลดรายการ");
     return;
   }
@@ -676,6 +706,7 @@ async function loadLiveLibrary({ append = false, token = "" } = {}) {
       }
     }
     if (serial !== requestSerial || view !== activeView) return;
+    resultCache.put(cacheOwner, cacheKey, page);
     if (page.channel) {
       elements.title.textContent = page.channel.title;
       sourceNote.textContent = page.channel.subscribers == null ? "วิดีโอล่าสุดจากช่องบน YouTube" : `ผู้ติดตาม ${formatCompactNumber(page.channel.subscribers)} คน • วิดีโอล่าสุดจาก YouTube`;
@@ -694,6 +725,9 @@ async function loadLiveLibrary({ append = false, token = "" } = {}) {
     loadLibraryPage.hidden = !libraryNextToken;
   } catch (error) {
     if (serial !== requestSerial || error.name === "AbortError") return;
+    if (cached) showCachedLibrary();
+    libraryNextToken = "";
+    loadLibraryPage.hidden = true;
     setStatus(error.message || "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่", true);
     authorizeLibrary.hidden = view === "channel" || Boolean(validYouTubeToken());
   } finally {
@@ -1246,6 +1280,7 @@ function performSearch(value = elements.searchInput.value, { syncUrl = true } = 
 }
 
 function unlockApp(user) {
+  cacheOwner = String(user?.sub || user?.email || "");
   const label = String(user?.name || "MyTube").trim();
   const initials = userInitials(label);
   const picture = safeProfilePicture(user?.picture);
@@ -1275,6 +1310,7 @@ async function performLogout(trigger) {
   try {
     const response = await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error("Sign out failed");
+    resultCache.clear();
     window.google?.accounts?.id?.disableAutoSelect();
     location.reload();
   } catch {
