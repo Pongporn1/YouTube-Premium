@@ -555,7 +555,7 @@ async function fetchVideos(url, { append = false } = {}) {
     if (append && activeView === "search") searchPagesLoaded += 1;
     const incoming = Array.isArray(data.items) ? data.items : [];
     const filteredIncoming = incoming.filter(matchesActiveCategory).filter((video) => activeCategory !== "10" || isStrictMusicVideo(video));
-    const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
+    const initialItems = !append && activeView === "home" ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
     videos = append
       ? [...new Map([...videos, ...filteredIncoming].map((video) => [video.id, video])).values()]
       : initialItems;
