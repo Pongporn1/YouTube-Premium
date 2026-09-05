@@ -2,6 +2,16 @@
 
 A mobile-responsive, local-first YouTube viewing portal for Vercel. The home screen loads Thailand's public trending videos, supports category browsing and in-site search, and opens videos in a privacy-enhanced YouTube embed.
 
+## Data sources
+
+- Home/categories/search: public YouTube Data API results. MyTube mixes its own home feed; it cannot retrieve YouTube's private recommendation ranking.
+- Channel links: in-app channel uploads, real titles and subscriber counts, with next-page loading.
+- Subscriptions, liked videos and owned playlists: fresh read-only OAuth requests when opening the page. Lists paginate in batches of 50; playlist items retain their original order. The mobile account menu also exposes playlists.
+- History/Watch Later: locally saved or explicitly imported membership. Opening these pages refreshes public video metadata without deleting unavailable entries or changing saved timestamps. These account lists are not available through YouTube Data API.
+- Comments: YouTube comment threads and returned replies; disabled comments and API errors remain visible as errors.
+- Shorts, notifications, upload and Google account management open their official pages. They do not display fabricated in-app account data.
+- OAuth access tokens stay in memory. After expiry/reload, an explicit connect action may be required. Automatic refresh does not open OAuth popups.
+
 ## Privacy model
 
 - Production access is gated by Google Sign-In and an allowed-email check on the server.

@@ -90,6 +90,9 @@
         <button class="account-action" type="button" data-view="liked">
           <span aria-hidden="true">♥</span><span>วิดีโอที่ชอบจาก YouTube</span><span aria-hidden="true">›</span>
         </button>
+        <button class="account-action" type="button" data-view="playlists">
+          <span aria-hidden="true">▤</span><span>เพลย์ลิสต์ของฉันจาก YouTube</span><span aria-hidden="true">›</span>
+        </button>
         <button class="account-action" id="account-youtube" type="button">
           <span aria-hidden="true">▶</span><span>เชื่อมข้อมูล YouTube แบบอ่านอย่างเดียว</span><span aria-hidden="true">›</span>
         </button>
@@ -120,7 +123,7 @@
       <button class="nav-item" type="button" data-view="history">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3a9 9 0 1 1-8.2 5.3L2 10V4h6L6.2 5.8A7 7 0 1 0 13 5v4h-2V3h2Zm-1 7.2 4.2 2.5-1 1.7-5.2-3.1V7h2v3.2Z"/></svg><span>ประวัติการดู</span>
       </button>
-      <a class="nav-item" href="https://www.youtube.com/feed/playlists" target="_blank" rel="noopener noreferrer">
+      <a class="nav-item" href="#playlists" data-view="playlists">
         <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h11v2H4V5Zm0 4h11v2H4V9Zm0 4h7v2H4v-2Zm12-1 5 3-5 3v-6Z"/></svg><span>เพลย์ลิสต์</span>
       </a>
       <button class="nav-item" type="button" data-view="watch-later">
@@ -188,7 +191,10 @@
         <button class="personalization-clear" id="clear-personalization" type="button" hidden aria-label="ล้างข้อมูลฟีดสำหรับคุณ">×</button>
       </section>
       <p class="status-message" id="status-message" role="status" aria-live="polite">กำลังโหลดวิดีโอ…</p>
+      <p class="data-source-note" id="data-source-note">วิดีโอจาก YouTube • ฟีดนี้จัดเรียงโดย MyTube</p>
+      <button class="tool-button" id="authorize-library" type="button" hidden>เชื่อม YouTube เพื่อโหลดรายการล่าสุด</button>
       <div class="video-grid" id="video-grid" aria-busy="true"></div>
+      <button class="tool-button" id="load-library-page" type="button" hidden>โหลดเพิ่มเติมจาก YouTube</button>
       <div class="feed-loader" id="feed-loader" hidden role="status" aria-live="polite">
         <span class="loading-spinner" aria-hidden="true"></span>
         <span>กำลังโหลดวิดีโอเพิ่มเติม…</span>

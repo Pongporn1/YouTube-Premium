@@ -1,6 +1,7 @@
 import { canonicalWatchUrl, isStrictMusicVideo, privacyEmbedUrl } from "./video-utils.js";
 import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
+import { readAccountPage, mergeFreshMetadata } from "./youtube-library.js";
 
 const WATCH_LATER_KEY = "mytube-private-watch-later-v3";
 const LEGACY_FAVORITES_KEY = "mytube-private-favorites-v2";
@@ -15,6 +16,14 @@ const UPLOADS_PER_CHANNEL = 10;
 const PERSONALIZATION_REFRESH_MS = 15 * 60 * 1000;
 const PERSONALIZATION_WORKERS = 6;
 const MAX_SEARCH_QUERY_LENGTH = 100;
+const ACCOUNT_VIEWS = ["subscriptions", "liked", "playlists", "playlist"];
+const sourceNote = document.getElementById("data-source-note");
+const authorizeLibrary = document.getElementById("authorize-library");
+const loadLibraryPage = document.getElementById("load-library-page");
+let libraryContext = { id: "", title: "" };
+let libraryNextToken = "";
+let libraryItems = [];
+let libraryBusy = false;
 
 const elements = {
   body: document.body,
@@ -63,7 +72,7 @@ const elements = {
   importLibrary: document.getElementById("import-library"),
   clearLibrary: document.getElementById("clear-library"),
   importMessage: document.getElementById("import-message"),
-  navButtons: [...document.querySelectorAll("[data-view]")],
+  navButtons: [...document.querySelectorAll("button[data-view], a[data-view]")],
   watchDialog: document.getElementById("watch-dialog"),
   closePlayer: document.getElementById("close-player"),
   minimizePlayer: document.getElementById("minimize-player"),
@@ -359,6 +368,8 @@ function createVideoCard(video) {
   avatar.style.backgroundColor = avatarColor(video.channel);
   if (channelHref) {
     avatar.href = channelHref;
+    avatar.dataset.channelId = video.channelId;
+    avatar.dataset.channelTitle = video.channel;
     avatar.target = "_blank";
     avatar.rel = "noopener noreferrer";
     avatar.setAttribute("aria-label", `เปิดช่อง ${video.channel} บน YouTube`);
@@ -392,6 +403,8 @@ function createVideoCard(video) {
   channel.textContent = video.channel;
   if (channelHref) {
     channel.href = channelHref;
+    channel.dataset.channelId = video.channelId;
+    channel.dataset.channelTitle = video.channel;
     channel.target = "_blank";
     channel.rel = "noopener noreferrer";
   }
@@ -526,10 +539,16 @@ async function prefetchFeedPages(maxPages = 3) {
 }
 
 function activateView(view) {
+  libraryNextToken = "";
+  libraryBusy = false;
+  loadLibraryPage.hidden = true;
+  authorizeLibrary.hidden = true;
+  sourceNote.textContent = view === "home" ? "วิดีโอจาก YouTube • ฟีดนี้จัดเรียงโดย MyTube" : "ข้อมูลจาก YouTube";
+  syncSearchLocation();
   elements.body.classList.remove("mobile-searching");
   activeView = view;
   elements.body.dataset.view = view;
-  if (["watch-later", "history", "subscriptions", "liked"].includes(view)) {
+  if (["watch-later", "history", ...ACCOUNT_VIEWS, "channel"].includes(view)) {
     requestSerial += 1;
     requestController?.abort();
     requestController = null;
@@ -544,6 +563,23 @@ function activateView(view) {
   elements.historySearch.closest("label").hidden = view !== "history";
   elements.clearLibrary.textContent = view === "watch-later" ? "ล้างดูภายหลัง" : "ล้างประวัติ";
   elements.importMessage.hidden = true;
+  if (ACCOUNT_VIEWS.includes(view) || view === "channel") {
+    activeCategory = "";
+    elements.title.textContent = ({ subscriptions: "ช่องที่ติดตาม", liked: "วิดีโอที่ชอบ", playlists: "เพลย์ลิสต์ของฉัน" })[view] || libraryContext.title;
+    elements.eyebrow.textContent = "YOUTUBE";
+    videos = [];
+    libraryItems = [];
+    elements.grid.replaceChildren();
+    elements.empty.hidden = true;
+    updatePersonalizationPanel();
+    void loadLiveLibrary();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  if (["history", "watch-later"].includes(view)) {
+    sourceNote.textContent = "รายการที่บันทึกใน MyTube หรือนำเข้า • YouTube ไม่เปิดให้ซิงก์ประวัติและดูภายหลังของบัญชีโดยตรง";
+    queueMicrotask(() => { if (activeView === view) void refreshSavedMetadata(view); });
+  }
   if (view === "watch-later") {
     elements.title.textContent = "ดูภายหลัง";
     elements.eyebrow.textContent = "MYTUBE QUEUE";
@@ -553,16 +589,6 @@ function activateView(view) {
     elements.title.textContent = "ประวัติการดู";
     elements.eyebrow.textContent = "PRIVATE • ON THIS BROWSER";
     videos = [...history];
-    render();
-  } else if (view === "subscriptions") {
-    elements.title.textContent = "การติดตาม";
-    elements.eyebrow.textContent = "YOUTUBE • READ ONLY";
-    videos = [...personalization.subscriptionItems];
-    render();
-  } else if (view === "liked") {
-    elements.title.textContent = "วิดีโอที่ชอบ";
-    elements.eyebrow.textContent = "YOUTUBE • READ ONLY";
-    videos = [...personalization.likedItems];
     render();
   } else {
     activeQuery = "";
@@ -578,12 +604,136 @@ function activateView(view) {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+function validYouTubeToken() {
+  return youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000;
+}
+
+function createCollectionCard(item) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "youtube-collection";
+  const picture = safeProfilePicture(item.thumbnail);
+  if (picture) {
+    const image = document.createElement("img");
+    image.src = picture;
+    image.alt = "";
+    image.loading = "lazy";
+    button.append(image);
+  }
+  const title = document.createElement("strong");
+  title.textContent = item.title;
+  const detail = document.createElement("span");
+  detail.textContent = item.kind === "playlist" ? `${item.count ?? 0} วิดีโอ • เปิดเพลย์ลิสต์` : "เปิดช่องและวิดีโอล่าสุด";
+  button.append(title, detail);
+  button.addEventListener("click", () => {
+    libraryContext = { id: item.id, title: item.title };
+    activateView(item.kind);
+  });
+  return button;
+}
+
+async function loadLiveLibrary({ append = false, token = "" } = {}) {
+  if (libraryBusy) return;
+  const view = activeView;
+  if (!ACCOUNT_VIEWS.includes(view) && view !== "channel") return;
+  if (view !== "channel" && !token && !validYouTubeToken()) {
+    authorizeLibrary.hidden = false;
+    sourceNote.textContent = "เชื่อมบัญชี YouTube เพื่ออ่านรายการล่าสุดแบบอ่านอย่างเดียว";
+    setStatus("ต้องอนุญาตอ่าน YouTube ในแท็บนี้ก่อนโหลดรายการ");
+    return;
+  }
+  libraryBusy = true;
+  authorizeLibrary.hidden = true;
+  loadLibraryPage.disabled = true;
+  const serial = ++requestSerial;
+  requestController?.abort();
+  const controller = new AbortController();
+  requestController = controller;
+  setStatus("กำลังอ่านข้อมูลจาก YouTube…");
+  try {
+    let page;
+    if (view === "channel") {
+      const params = new URLSearchParams({ id: libraryContext.id, pageToken: append ? libraryNextToken : "" });
+      const response = await fetch(`/api/channel?${params}`, { signal: controller.signal });
+      page = await response.json();
+      if (!response.ok) throw new Error(page.error || "โหลดช่องไม่สำเร็จ");
+      page.kind = "videos";
+    } else {
+      page = await readAccountPage((resource, parameters) => authorizedYouTubeRequest(resource, parameters, token || youtubeAccessToken, controller.signal), view, {
+        id: libraryContext.id, pageToken: append ? libraryNextToken : ""
+      });
+      if (page.kind === "videos" && page.items.length) {
+        const ids = [...new Set(page.items.map(item => item.channelId).filter(Boolean))];
+        if (ids.length) {
+          const data = await authorizedYouTubeRequest("channels", { part: "snippet", id: ids.join(",") }, token || youtubeAccessToken, controller.signal);
+          const thumbnails = channelThumbnailMap(data.items);
+          page.items = page.items.map(item => ({ ...item, channelThumbnail: thumbnails.get(item.channelId) || "" }));
+        }
+      }
+    }
+    if (serial !== requestSerial || view !== activeView) return;
+    if (page.channel) {
+      elements.title.textContent = page.channel.title;
+      sourceNote.textContent = page.channel.subscribers == null ? "วิดีโอล่าสุดจากช่องบน YouTube" : `ผู้ติดตาม ${formatCompactNumber(page.channel.subscribers)} คน • วิดีโอล่าสุดจาก YouTube`;
+    } else sourceNote.textContent = "อ่านรายการล่าสุดจากบัญชี YouTube แล้ว • อ่านอย่างเดียว";
+    libraryItems = append ? [...libraryItems, ...page.items] : page.items;
+    libraryNextToken = page.nextPageToken;
+    if (page.kind === "videos") {
+      videos = libraryItems;
+      render();
+    } else {
+      elements.grid.replaceChildren(...libraryItems.map(createCollectionCard));
+      elements.grid.setAttribute("aria-busy", "false");
+    }
+    elements.empty.hidden = true;
+    setStatus(libraryItems.length ? `${libraryItems.length} ${page.kind === "videos" ? "วิดีโอ" : "รายการ"}${libraryNextToken ? " • ยังมีรายการเพิ่มเติม" : ""}` : "ไม่พบรายการที่อ่านได้จากบัญชี YouTube นี้");
+    loadLibraryPage.hidden = !libraryNextToken;
+  } catch (error) {
+    if (serial !== requestSerial || error.name === "AbortError") return;
+    setStatus(error.message || "โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่", true);
+    authorizeLibrary.hidden = view === "channel" || Boolean(validYouTubeToken());
+  } finally {
+    if (serial === requestSerial) {
+      libraryBusy = false;
+      loadLibraryPage.disabled = false;
+      if (requestController === controller) requestController = null;
+    }
+  }
+}
+
+async function refreshSavedMetadata(view) {
+  const serial = ++requestSerial;
+  const original = view === "history" ? history : watchLater;
+  if (!original.length) return;
+  setStatus("กำลังอัปเดตชื่อคลิป รูป และยอดดูจาก YouTube…");
+  try {
+    const fresh = [];
+    for (const chunk of chunkItems(original, 50)) {
+      if (serial !== requestSerial || activeView !== view) return;
+      const response = await fetch(`/api/video?ids=${encodeURIComponent(chunk.map(item => item.id).join(","))}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "อัปเดตข้อมูลคลิปไม่สำเร็จ");
+      fresh.push(...(data.items || []));
+    }
+    if (serial !== requestSerial || activeView !== view) return;
+    if (view === "history") history = mergeFreshMetadata(history, fresh);
+    else watchLater = mergeFreshMetadata(watchLater, fresh);
+    saveLocal();
+    videos = [...(view === "history" ? history : watchLater)];
+    render();
+    const missing = original.length - fresh.length;
+    if (missing > 0) setStatus(`อัปเดตข้อมูลแล้ว • ${missing} คลิปยังใช้ข้อมูลที่บันทึกไว้ เพราะ YouTube ไม่ส่งข้อมูลกลับมา`);
+  } catch (error) {
+    if (serial === requestSerial) setStatus(`${error.message} • ยังแสดงรายการที่บันทึกไว้`, true);
+  }
+}
+
 function toggleWatchLater(video) {
   if (isInWatchLater(video.id)) watchLater = watchLater.filter((item) => item.id !== video.id);
   else watchLater = [video, ...watchLater.filter((item) => item.id !== video.id)];
   const saved = saveLocal();
   if (activeView === "watch-later") videos = [...watchLater];
-  render();
+  if (!["subscriptions", "playlists"].includes(activeView)) render();
   if (!saved) setStatus("บันทึกได้ชั่วคราว แต่เบราว์เซอร์ปิด Local Storage อยู่", true);
   updatePlayerWatchLater();
 }
@@ -837,6 +987,8 @@ function openVideo(video) {
   }
   const channelHref = youtubeChannelUrl(video.channelId);
   for (const anchor of [elements.playerAvatar, elements.playerChannel]) {
+    anchor.dataset.channelId = video.channelId || "";
+    anchor.dataset.channelTitle = video.channel;
     if (channelHref) anchor.href = channelHref;
     else anchor.removeAttribute("href");
   }
@@ -1063,6 +1215,10 @@ function toggleAccountMenu(force) {
 }
 
 function performSearch(value = elements.searchInput.value, { syncUrl = true } = {}) {
+  libraryBusy = false;
+  loadLibraryPage.hidden = true;
+  authorizeLibrary.hidden = true;
+  sourceNote.textContent = "ผลค้นหาวิดีโอจาก YouTube";
   const query = normalizeSearchQuery(value);
   elements.searchInput.value = query;
   if (!query) {
@@ -1099,6 +1255,8 @@ function unlockApp(user) {
   setAccountAvatar(elements.mobileAvatarImage, elements.mobileAvatarFallback, picture, initials);
   elements.authGate.hidden = true;
   elements.body.classList.remove("auth-pending");
+  // Prepare the SDK without opening OAuth; the popup itself stays on a click.
+  void Promise.all([loadGoogleIdentity(), getGoogleClientId()]).catch(() => {});
   const initialQuery = readSearchQuery();
   if (initialQuery) performSearch(initialQuery, { syncUrl: false });
   else fetchVideos("/api/feed");
@@ -1145,7 +1303,8 @@ async function getGoogleClientId() {
 
 function requestYouTubeAccessToken({ silent = false } = {}) {
   if (youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000) return Promise.resolve(youtubeAccessToken);
-  return Promise.all([loadGoogleIdentity(), getGoogleClientId()]).then(([, clientId]) => new Promise((resolve, reject) => {
+  if (silent) return Promise.reject(new Error("สิทธิ์ YouTube หมดอายุ กรุณากดเชื่อมอีกครั้ง"));
+  const start = (clientId) => new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: "https://www.googleapis.com/auth/youtube.readonly",
@@ -1162,16 +1321,18 @@ function requestYouTubeAccessToken({ silent = false } = {}) {
       error_callback: () => reject(new Error("การเชื่อม YouTube ถูกยกเลิกหรือป๊อปอัปถูกบล็อก"))
     });
     client.requestAccessToken({ prompt: silent || hasYouTubeConnection() ? "" : "consent" });
-  }));
+  });
+  if (window.google?.accounts?.oauth2 && googleClientId) return start(googleClientId);
+  return Promise.all([loadGoogleIdentity(), getGoogleClientId()]).then(([, clientId]) => start(clientId));
 }
 
-async function authorizedYouTubeRequest(resource, parameters, token) {
+async function authorizedYouTubeRequest(resource, parameters, token, signal) {
   const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
   Object.entries(parameters).forEach(([name, value]) => {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));
   });
   const response = await fetch(url, {
-    headers: { Accept: "application/json", Authorization: `Bearer ${token}` }
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, signal
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -1222,7 +1383,7 @@ async function loadChannelDetails(channelIds, part, token) {
     part,
     id: chunk.join(","),
     maxResults: 50
-  }, token).catch(() => ({ items: [] })));
+  }, token));
   return responses.flatMap((response) => response?.items || []);
 }
 
@@ -1285,7 +1446,7 @@ async function loadAuthorizedVideoDetails(ids, token) {
     part: "snippet,contentDetails,statistics",
     id: chunk.join(","),
     maxResults: 50
-  }, token).catch(() => ({ items: [] })));
+  }, token));
   return responses.flatMap((response) => response?.items || []);
 }
 
@@ -1313,9 +1474,8 @@ async function buildPersonalizationSnapshot(token) {
     part: "contentDetails",
     playlistId,
     maxResults: UPLOADS_PER_CHANNEL
-  }, token).catch(() => ({ items: [] })));
+  }, token));
   const uploadIds = [...new Set(uploadPages.flatMap(playlistVideoIds))].slice(0, MAX_PERSONALIZED_VIDEOS);
-  if (likedIds.length === 0 && uploadIds.length === 0) throw new Error("ยังไม่พบวิดีโอที่ชอบหรือคลิปใหม่จากช่องที่ติดตาม");
 
   const requestedIds = [...new Set([
     ...likedIds.slice(0, MAX_PERSONALIZED_VIDEOS),
@@ -1336,7 +1496,6 @@ async function buildPersonalizationSnapshot(token) {
   const likedItems = formatItems(likedDetails, "วิดีโอที่คุณชอบ");
   const subscriptionItems = formatItems(subscriptionDetails, "ใหม่จากช่องที่ติดตาม");
   const items = [...new Map([...likedItems, ...subscriptionItems].map((video) => [video.id, video])).values()];
-  if (items.length === 0) throw new Error("วิดีโอจากบัญชีนี้ไม่พร้อมแสดงใน MyTube");
   return {
     items,
     likedItems,
@@ -1379,7 +1538,7 @@ function scheduleAutomaticPersonalizationSync() {
   // Services requires a user gesture before opening its token popup, so a
   // fresh page load must not try to silently re-authorize from a timer.
   // Automatic refresh remains enabled after the user connects in this tab.
-  if (!hasYouTubeConnection() || !youtubeAccessToken) return;
+  if (!hasYouTubeConnection() || !validYouTubeToken()) return;
   const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
   personalizationTimer = window.setTimeout(async () => {
     personalizationTimer = null;
@@ -1401,7 +1560,7 @@ async function connectYouTubePersonalization({ automatic = false } = {}) {
     personalization = await buildPersonalizationSnapshot(token);
     if (!savePersonalization()) finalMessage = "สร้างฟีดแล้ว แต่เบราว์เซอร์ไม่อนุญาตให้บันทึกข้อมูลไว้";
     if (activeView === "home") await fetchVideos(videoRequestUrl());
-    else if (["subscriptions", "liked"].includes(activeView)) activateView(activeView);
+    else if (ACCOUNT_VIEWS.includes(activeView)) activateView(activeView);
   } catch (error) {
     failed = !automatic;
     finalMessage = automatic ? "" : error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
@@ -1620,7 +1779,8 @@ elements.voiceSearch.addEventListener("click", startVoiceSearch);
 
 elements.refresh.addEventListener("click", () => {
   if ((activeView === "search" && activeQuery) || activeView === "home") fetchVideos(videoRequestUrl());
-  else if (["subscriptions", "liked"].includes(activeView)) connectYouTubePersonalization();
+  else if (ACCOUNT_VIEWS.includes(activeView) || activeView === "channel") void loadLiveLibrary();
+  else if (["history", "watch-later"].includes(activeView)) void refreshSavedMetadata(activeView);
   else render();
 });
 elements.backHome.addEventListener("click", () => {
@@ -1628,12 +1788,34 @@ elements.backHome.addEventListener("click", () => {
   else if (["subscriptions", "liked"].includes(activeView)) connectYouTubePersonalization();
   else activateView("home");
 });
-elements.navButtons.forEach((button) => button.addEventListener("click", () => {
+elements.navButtons.forEach((button) => button.addEventListener("click", (event) => {
+  event.preventDefault();
   toggleAccountMenu(false);
   closeVideoMenu();
   activateView(button.dataset.view);
 }));
 elements.historySearch.addEventListener("input", () => render());
+loadLibraryPage.addEventListener("click", () => { void loadLiveLibrary({ append: true }); });
+authorizeLibrary.addEventListener("click", async () => {
+  const view = activeView;
+  const id = libraryContext.id;
+  authorizeLibrary.disabled = true;
+  try {
+    const token = await requestYouTubeAccessToken();
+    if (activeView === view && libraryContext.id === id) await loadLiveLibrary({ token });
+    scheduleAutomaticPersonalizationSync();
+  } catch (error) {
+    if (activeView === view) setStatus(error.message, true);
+  } finally { authorizeLibrary.disabled = false; }
+});
+document.addEventListener("click", (event) => {
+  const anchor = event.target.closest("a[data-channel-id]");
+  if (!anchor || !/^UC[A-Za-z0-9_-]{22}$/.test(anchor.dataset.channelId) || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  event.preventDefault();
+  if (currentVideo && elements.watchDialog.open && !elements.watchDialog.classList.contains("mini-player")) minimizeVideo();
+  libraryContext = { id: anchor.dataset.channelId, title: anchor.dataset.channelTitle || "ช่อง YouTube" };
+  activateView("channel");
+});
 elements.importLibrary.addEventListener("click", () => openImportDialog(activeView));
 elements.clearLibrary.addEventListener("click", () => {
   const isWatchLater = activeView === "watch-later";

@@ -1,3 +1,10 @@
+.data-source-note { margin: 12px 0 20px; color: #aaa; font-size: 13px; line-height: 1.6; }
+.youtube-collection { display: flex; flex-direction: column; gap: 12px; padding: 16px; background: #202020; color: #f1f1f1; border: 1px solid #333; border-radius: 14px; text-align: left; cursor: pointer; font: inherit; }
+.youtube-collection img { width: 100%; aspect-ratio: 16/9; object-fit: contain; border-radius: 10px; }
+.youtube-collection span { color: #aaa; font-size: 13px; }
+.youtube-collection:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+#load-library-page, #authorize-library { margin: 16px 12px; }
+@media (max-width: 680px) { .data-source-note { margin-inline: 12px; } }
 :root {
   color-scheme: dark;
   --bg: #0f0f0f;

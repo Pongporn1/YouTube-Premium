@@ -1,6 +1,6 @@
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 import { requireSession } from "./auth/session-core.js";
-import { formatVideo, sendError, youtubeRequest } from "./youtube-client.js";
+import { addChannelThumbnails, formatVideo, sendError, youtubeRequest } from "./youtube-client.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {
@@ -24,8 +24,8 @@ export default async function handler(request, response) {
       id: ids.join(","),
       maxResults: ids.length
     });
-    const items = (data.items || []).map(formatVideo).filter(Boolean);
-    response.setHeader("Cache-Control", "public, s-maxage=86400, stale-while-revalidate=604800");
+    const items = await addChannelThumbnails((data.items || []).map(formatVideo).filter(Boolean));
+    response.setHeader("Cache-Control", "private, no-store");
     if (request.query.ids) return response.status(200).json({ items });
     if (items.length === 0) return response.status(404).json({ error: "Video metadata unavailable" });
     return response.status(200).json(items[0]);
