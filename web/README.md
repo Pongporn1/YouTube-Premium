@@ -4,7 +4,7 @@ A mobile-responsive, local-first YouTube viewing portal for Vercel. The home scr
 
 ## Data sources
 
-- Home/categories/search: public YouTube Data API results. MyTube mixes its own home feed; it cannot retrieve YouTube's private recommendation ranking.
+- Home/categories/search: public YouTube Data API results. MyTube mixes its own home feed; it cannot retrieve YouTube's private recommendation ranking. The personal pool is ranked by the viewer's own signals instead of shuffling: channels and categories from local watch history carry the most weight, newly published videos outrank years-old ones, and recently watched videos stay out of the feed. Subscription channels are synced most-first for the channels the viewer watches most.
 - Channel links: in-app channel uploads, real titles and subscriber counts, with next-page loading.
 - Subscriptions, liked videos and owned playlists: fresh read-only OAuth requests when opening the page. Lists paginate in batches of 50; playlist items retain their original order. The mobile account menu also exposes playlists.
 - History/Watch Later: locally saved or explicitly imported membership. Opening these pages refreshes public video metadata without deleting unavailable entries or changing saved timestamps. These account lists are not available through YouTube Data API.

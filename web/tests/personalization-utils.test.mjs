@@ -39,3 +39,41 @@ test("mixes personal signals with trending and avoids recently watched videos", 
   assert.equal(mixed.some((item) => item.id === "EEEEEEEEEEE"), true);
   assert.equal(new Set(mixed.map((item) => item.id)).size, mixed.length);
 });
+
+test("ranks newly published personal videos above years-old ones", () => {
+  const now = Date.parse("2026-09-05T00:00:00Z");
+  const fresh = { ...video("AAAAAAAAAAA"), publishedAt: "2026-09-03T00:00:00Z" };
+  const stale = { ...video("BBBBBBBBBBB"), publishedAt: "2018-01-01T00:00:00Z" };
+  const mixed = mixPersonalizedFeed([stale, fresh], [], { limit: 2, random: () => 0, now });
+  assert.deepEqual(mixed.map((item) => item.id), ["AAAAAAAAAAA", "BBBBBBBBBBB"]);
+});
+
+test("prefers channels the viewer actually watches", () => {
+  const now = Date.parse("2026-09-05T00:00:00Z");
+  const ignored = { ...video("AAAAAAAAAAA"), channelId: "UCignored", publishedAt: "2026-09-01T00:00:00Z" };
+  const watched = { ...video("BBBBBBBBBBB"), channelId: "UCwatched", publishedAt: "2026-09-01T00:00:00Z" };
+  const historyEntry = { ...video("CCCCCCCCCCC"), channelId: "UCwatched", categoryId: "24", publishedAt: "2026-09-02T00:00:00Z" };
+  const mixed = mixPersonalizedFeed([ignored, watched], [], {
+    history: [historyEntry, { ...historyEntry, id: "DDDDDDDDDDD" }, { ...historyEntry, id: "EEEEEEEEEEE" }],
+    limit: 2,
+    random: () => 0,
+    now
+  });
+  assert.equal(mixed[0].id, "BBBBBBBBBBB");
+});
+
+test("ranks trending by category affinity instead of shuffling", () => {
+  const now = Date.parse("2026-09-05T00:00:00Z");
+  const music = { ...video("AAAAAAAAAAA"), categoryId: "10", publishedAt: "2026-09-01T00:00:00Z" };
+  const gaming = { ...video("BBBBBBBBBBB"), categoryId: "20", publishedAt: "2026-09-01T00:00:00Z" };
+  const mixed = mixPersonalizedFeed([], [music, gaming], {
+    history: [
+      { ...video("CCCCCCCCCCC"), categoryId: "20", publishedAt: "2026-09-02T00:00:00Z" },
+      { ...video("DDDDDDDDDDD"), categoryId: "20", publishedAt: "2026-09-03T00:00:00Z" }
+    ],
+    limit: 2,
+    random: () => 0,
+    now
+  });
+  assert.equal(mixed[0].id, "BBBBBBBBBBB");
+});
