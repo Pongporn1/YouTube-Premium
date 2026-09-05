@@ -2266,6 +2266,23 @@ if (playerFrame) {
   });
 }
 elements.shareCurrent.addEventListener("click", shareCurrentVideo);
+// YouTube-app immersive scrolling: both bars slide away while scrolling down
+// for videos and come back the moment you scroll up.
+let lastScrollY = window.scrollY;
+let navHidePending = false;
+window.addEventListener("scroll", () => {
+  if (navHidePending) return;
+  navHidePending = true;
+  requestAnimationFrame(() => {
+    navHidePending = false;
+    const y = window.scrollY;
+    const delta = y - lastScrollY;
+    lastScrollY = y;
+    if (y < 80) elements.body.classList.remove("nav-hidden");
+    else if (delta > 6) elements.body.classList.add("nav-hidden");
+    else if (delta < -6) elements.body.classList.remove("nav-hidden");
+  });
+}, { passive: true });
 elements.watchDialog.addEventListener("click", (event) => {
   if (elements.watchDialog.classList.contains("mini-player")) {
     if (event.target.closest("#close-player")) {

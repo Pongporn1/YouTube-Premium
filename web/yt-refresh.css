@@ -193,7 +193,18 @@ body {
 
 .ad-note { display: none; }
 
-/* ── YouTube-app sheet gestures: swipe down = minimize ─────────────────── */
+/* ── Immersive scrolling: bars slide out on scroll down, return on up ──── */
+@media (max-width: 680px) {
+  .topbar,
+  .bottom-nav { transition: transform 220ms cubic-bezier(.2, .7, .3, 1); }
+
+  .chips { transition: top 220ms cubic-bezier(.2, .7, .3, 1); }
+
+  body.nav-hidden .topbar { transform: translateY(-100%); }
+  body.nav-hidden .bottom-nav { transform: translateY(100%); }
+  body.nav-hidden .chips { top: 0; }
+}
+
 .player-frame { position: relative; }
 
 .player-gesture {
