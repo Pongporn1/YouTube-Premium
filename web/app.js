@@ -163,6 +163,11 @@ function quotaActive() {
   return Date.now() < quotaBlockedUntil;
 }
 let googleClientId = "";
+// Optional second OAuth client dedicated to youtube.readonly. Google charges
+// Data API quota to the project that owns the OAuth client, so pointing the
+// data token at a second project doubles the family's daily budget and keeps
+// account views alive while the sign-in project's quota is spent.
+let youtubeDataClientId = "";
 let youtubeAccessToken = "";
 let youtubeTokenExpiresAt = 0;
 let personalizationBusy = false;
@@ -1538,6 +1543,7 @@ async function getGoogleClientId() {
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.clientId) throw new Error("ยังไม่พบการตั้งค่า Google OAuth");
   googleClientId = String(data.clientId);
+  youtubeDataClientId = String(data.youtubeDataClientId || "");
   return googleClientId;
 }
 
@@ -1570,8 +1576,11 @@ function requestYouTubeAccessToken({ silent = false } = {}) {
     });
     client.requestAccessToken({ prompt: silent || hasYouTubeConnection() ? "" : "consent" });
   });
-  if (window.google?.accounts?.oauth2 && googleClientId) return start(googleClientId);
-  return Promise.all([loadGoogleIdentity(), getGoogleClientId()]).then(([, clientId]) => start(clientId));
+  if (window.google?.accounts?.oauth2 && (youtubeDataClientId || googleClientId)) {
+    return start(youtubeDataClientId || googleClientId);
+  }
+  return Promise.all([loadGoogleIdentity(), getGoogleClientId()])
+    .then(() => start(youtubeDataClientId || googleClientId));
 }
 
 async function authorizedYouTubeRequest(resource, parameters, token, signal) {
@@ -1886,6 +1895,7 @@ async function initializeAuth() {
     const config = await configResponse.json().catch(() => ({}));
     if (!configResponse.ok || !config.clientId) throw new Error("Google Sign-In ยังไม่ได้ตั้งค่าใน Vercel");
     googleClientId = String(config.clientId);
+    youtubeDataClientId = String(config.youtubeDataClientId || "");
     await loadGoogleIdentity();
     const redirectSignIn = shouldRedirectGoogleSignIn();
     window.google.accounts.id.initialize(redirectSignIn ? {

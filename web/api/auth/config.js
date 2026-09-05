@@ -14,5 +14,10 @@ export default function handler(request, response) {
     process.env.YOUTUBE_API_KEY_2,
     process.env.YOUTUBE_API_KEY_3,
   ].flat().map((key) => String(key || "").trim()).filter(Boolean);
-  return response.status(200).json({ clientId, youtubeApiKeys: configuredKeys.length });
+  return response.status(200).json({
+    clientId,
+    // Public identifiers only; client IDs appear in page source by design.
+    youtubeDataClientId: String(process.env.YOUTUBE_DATA_CLIENT_ID || ""),
+    youtubeApiKeys: configuredKeys.length
+  });
 }
