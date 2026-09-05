@@ -1713,6 +1713,10 @@ elements.mobileAccountButton.addEventListener("click", (event) => {
   toggleAccountMenu();
 });
 elements.accountMenu.addEventListener("click", (event) => event.stopPropagation());
+document.getElementById("close-account-menu").addEventListener("click", () => {
+  toggleAccountMenu(false);
+  (mobileViewport.matches ? elements.mobileAccountButton : elements.accountButton).focus();
+});
 elements.accountPrivacy.addEventListener("click", () => {
   toggleAccountMenu(false);
   elements.privacyDialog.showModal();
@@ -1751,7 +1755,7 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!elements.accountMenu.hidden) {
     toggleAccountMenu(false);
-    elements.accountButton.focus();
+    (mobileViewport.matches ? elements.mobileAccountButton : elements.accountButton).focus();
   } else if (!elements.videoMenu.hidden) {
     const trigger = currentMenuTrigger;
     closeVideoMenu();

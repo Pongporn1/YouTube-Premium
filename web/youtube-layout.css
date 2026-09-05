@@ -1,4 +1,12 @@
 /* Shared visual language; player and account interaction rules stay in styles.css. */
+/* Root-level overlay escapes the header's backdrop-filter containing block. */
+.account-menu { z-index: 220; max-height: calc(100dvh - var(--topbar) - 24px); overflow-y: auto; }
+.account-close { position: sticky; top: 8px; z-index: 1; display: grid; place-items: center; margin: 8px 8px -44px auto; width: 36px; height: 36px; border: 0; border-radius: 50%; color: #fff; background: #383838; font-size: 26px; cursor: pointer; }
+.account-profile { padding-right: 50px; }
+@media (max-width: 680px) {
+  .account-menu { inset: max(4px, env(safe-area-inset-top)) 0 0; max-height: none; height: auto; }
+  .account-profile { padding-right: 52px; }
+}
 .search-filters { display: none; }
 body[data-view="search"] .search-filters { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 24px; }
 .search-filters label { display: flex; align-items: center; gap: 8px; color: #aaa; }
