@@ -1508,6 +1508,8 @@ async function buildPersonalizationSnapshot(token) {
 
 function updatePersonalizationPanel(message = "", isError = false) {
   const connected = hasYouTubeConnection();
+  // Successful background sync needs no banner; keep connection/error recovery visible.
+  elements.personalizationPanel.hidden = connected && !isError;
   const isAccountView = ["subscriptions", "liked"].includes(activeView);
   elements.personalizationPanel.classList.toggle("connected", connected && !isError);
   elements.personalizationPanel.classList.toggle("error", isError);
