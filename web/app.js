@@ -3,12 +3,14 @@ import { mergeVideoCollections, parseLibraryText } from "./library-utils.js";
 import { formatAuthorizedVideo, mixPersonalizedFeed, playlistVideoIds } from "./personalization-utils.js";
 import { readAccountPage, mergeFreshMetadata } from "./youtube-library.js";
 import { createResultCache } from "./result-cache.js";
+import { accountStorageKey, migrateOwnerStorage } from "./account-storage.js";
 const resultCache = createResultCache({
   getItem: key => sessionStorage.getItem(key),
   setItem: (key, value) => sessionStorage.setItem(key, value),
   removeItem: key => sessionStorage.removeItem(key)
 });
 let cacheOwner = "";
+let accountEmail = "";
 
 const WATCH_LATER_KEY = "mytube-private-watch-later-v3";
 const LEGACY_FAVORITES_KEY = "mytube-private-favorites-v2";
@@ -173,7 +175,8 @@ const mobileViewport = window.matchMedia("(max-width: 680px)");
 
 function safeStorageGet(key) {
   try {
-    return localStorage.getItem(key);
+    const scoped = accountStorageKey(accountEmail, key);
+    return scoped ? localStorage.getItem(scoped) : null;
   } catch {
     storageFailed = true;
     return null;
@@ -182,7 +185,9 @@ function safeStorageGet(key) {
 
 function safeStorageSet(key, value) {
   try {
-    localStorage.setItem(key, value);
+    const scoped = accountStorageKey(accountEmail, key);
+    if (!scoped) return false;
+    localStorage.setItem(scoped, value);
     return true;
   } catch {
     storageFailed = true;
@@ -1468,6 +1473,13 @@ function performSearch(value = elements.searchInput.value, { syncUrl = true } = 
 }
 
 function unlockApp(user) {
+  accountEmail = String(user?.email || "").trim().toLowerCase();
+  try {
+    migrateOwnerStorage(localStorage, accountEmail, [WATCH_LATER_KEY, LEGACY_FAVORITES_KEY, HISTORY_KEY, PERSONALIZATION_KEY, LAST_HOME_ORDER_KEY]);
+  } catch { storageFailed = true; }
+  watchLater = loadWatchLater();
+  history = loadJson(HISTORY_KEY, []);
+  personalization = loadPersonalization();
   cacheOwner = String(user?.sub || user?.email || "");
   const label = String(user?.name || "MyTube").trim();
   const initials = userInitials(label);
@@ -1535,13 +1547,21 @@ function requestYouTubeAccessToken({ silent = false } = {}) {
   const start = (clientId) => new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
-      scope: "https://www.googleapis.com/auth/youtube.readonly",
+      scope: "openid email https://www.googleapis.com/auth/youtube.readonly",
+      hint: accountEmail,
       include_granted_scopes: true,
-      callback: (result) => {
+      callback: async (result) => {
         if (!result?.access_token || result.error) {
           reject(new Error("ไม่ได้รับสิทธิ์อ่านข้อมูล YouTube"));
           return;
         }
+        try {
+          const check = await fetch("/api/auth/youtube-account", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ accessToken: result.access_token })
+          });
+          if (!check.ok) throw new Error("กรุณาเลือกบัญชี YouTube ให้ตรงกับบัญชีที่เข้าสู่ระบบ MyTube");
+        } catch (error) { reject(error); return; }
         youtubeAccessToken = result.access_token;
         youtubeTokenExpiresAt = Date.now() + Math.max(300, Number(result.expires_in) || 3600) * 1000;
         resolve(youtubeAccessToken);
@@ -1577,13 +1597,16 @@ async function authorizedYouTubeRequest(resource, parameters, token, signal) {
   return data;
 }
 
-function shuffledCopy(items) {
-  const copy = [...items];
-  for (let index = copy.length - 1; index > 0; index -= 1) {
-    const target = Math.floor(Math.random() * (index + 1));
-    [copy[index], copy[target]] = [copy[target], copy[index]];
+// Newest uploads are fetched most-first from the channels the viewer watches
+// most, so the personal pool leads with familiar channels instead of a random
+// subset. Stable sort keeps never-watched channels in subscription order.
+function rankSubscriptionsByWatchAffinity(channelIds) {
+  const watchCounts = new Map();
+  for (const entry of history.slice(0, 150)) {
+    const channelId = String(entry?.channelId || "");
+    if (channelId) watchCounts.set(channelId, (watchCounts.get(channelId) || 0) + 1);
   }
-  return copy;
+  return [...channelIds].sort((a, b) => (watchCounts.get(b) || 0) - (watchCounts.get(a) || 0));
 }
 
 function chunkItems(items, size = 50) {
@@ -1687,7 +1710,7 @@ async function buildPersonalizationSnapshot(token) {
   const subscriptionIds = [...new Set(subscriptions.items
     .map((item) => String(item?.snippet?.resourceId?.channelId || ""))
     .filter(Boolean))];
-  const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, MAX_SUBSCRIPTION_CHANNELS);
+  const selectedSubscriptionIds = rankSubscriptionsByWatchAffinity(subscriptionIds);
 
   const [likes, selectedChannels] = await Promise.all([
     likesPlaylistId ? loadPlaylistVideoIds(likesPlaylistId, token, { maxPages: MAX_LIKED_PAGES }) : Promise.resolve({ ids: [], totalResults: 0 }),
