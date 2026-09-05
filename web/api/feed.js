@@ -1,5 +1,5 @@
-import { addChannelThumbnails, formatVideo, isStrictMusicVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "./youtube-client.js";
-import { requireSession } from "./auth/session-core.js";
+import { addChannelThumbnails, formatVideo, isStrictMusicVideo, normalizeCategory, normalizePageToken, sendError, youtubeRequest } from "../lib/youtube-client.js";
+import { requireSession } from "../lib/session-core.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {

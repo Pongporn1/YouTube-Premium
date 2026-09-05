@@ -1,5 +1,5 @@
-import { requireSession } from './auth/session-core.js';
-import { addChannelThumbnails, formatVideo, normalizePageToken, sendError, youtubeRequest } from './youtube-client.js';
+import { requireSession } from '../lib/session-core.js';
+import { addChannelThumbnails, formatVideo, normalizePageToken, sendError, youtubeRequest } from '../lib/youtube-client.js';
 
 export default async function handler(request, response) {
   response.setHeader('Cache-Control', 'private, no-store');

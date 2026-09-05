@@ -1,4 +1,4 @@
-import { readSession } from "./session-core.js";
+import { readSession } from "../../lib/session-core.js";
 
 export default function handler(request, response) {
   if (request.method !== "GET") {

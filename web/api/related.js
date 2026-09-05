@@ -1,5 +1,5 @@
-import { requireSession } from "./auth/session-core.js";
-import { addChannelThumbnails, formatVideo, normalizePageToken, normalizeVideoId, seedChannelThumbnail, sendError, youtubeRequest } from "./youtube-client.js";
+import { requireSession } from "../lib/session-core.js";
+import { addChannelThumbnails, formatVideo, normalizePageToken, normalizeVideoId, seedChannelThumbnail, sendError, youtubeRequest } from "../lib/youtube-client.js";
 
 const CHANNEL_ID_PATTERN = /^UC[A-Za-z0-9_-]{22}$/;
 

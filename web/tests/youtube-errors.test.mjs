@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { youtubeRequest } from '../api/youtube-client.js';
+import { youtubeRequest } from '../lib/youtube-client.js';
 process.env.YOUTUBE_API_KEY='test-only';
 test('quota errors and permission errors have distinct messages', async t => {
   let reason='quotaExceeded';

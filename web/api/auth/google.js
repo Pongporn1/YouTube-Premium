@@ -1,6 +1,6 @@
 import { OAuth2Client } from "google-auth-library";
-import { createSession, setSessionCookie } from "./session-core.js";
-import { allowedAccounts } from "./family-policy.js";
+import { createSession, setSessionCookie } from "../../lib/session-core.js";
+import { allowedAccounts } from "../../lib/family-policy.js";
 
 function requestBody(request) {
   if (request.body && typeof request.body === "object") return request.body;

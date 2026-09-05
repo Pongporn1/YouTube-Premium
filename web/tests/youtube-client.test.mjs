@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addChannelThumbnails, formatCommentThread, formatVideo, mergeChannelThumbnails, normalizeCategory, normalizePageToken, normalizeQuery, normalizeVideoId, parseDuration } from "../api/youtube-client.js";
+import { addChannelThumbnails, formatCommentThread, formatVideo, mergeChannelThumbnails, normalizeCategory, normalizePageToken, normalizeQuery, normalizeVideoId, parseDuration } from "../lib/youtube-client.js";
 
 test("normalizes public API query parameters", () => {
   assert.equal(normalizeCategory("10"), "10");

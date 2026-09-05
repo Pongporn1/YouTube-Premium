@@ -1,5 +1,5 @@
-import { requireSession } from "./auth/session-core.js";
-import { formatCommentThread, normalizePageToken, normalizeVideoId, sendError, youtubeRequest } from "./youtube-client.js";
+import { requireSession } from "../lib/session-core.js";
+import { formatCommentThread, normalizePageToken, normalizeVideoId, sendError, youtubeRequest } from "../lib/youtube-client.js";
 
 export default async function handler(request, response) {
   if (request.method !== "GET") {

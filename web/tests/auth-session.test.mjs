@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSession, readSession } from "../api/auth/session-core.js";
+import { createSession, readSession } from "../lib/session-core.js";
 import sessionHandler from "../api/auth/session.js";
 
 process.env.SESSION_SECRET = "test-only-secret-with-at-least-thirty-two-characters";

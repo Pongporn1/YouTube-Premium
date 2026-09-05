@@ -6,7 +6,7 @@ export { isStrictMusicVideo, NON_MUSIC_PATTERNS } from "../video-utils.js";
 
 
 export function parseDuration(value) {
-  const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(value || ""));
+  const match = String(value || "").match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/);
   if (!match) return "";
   const hours = Number(match[1] || 0);
   const minutes = Number(match[2] || 0);

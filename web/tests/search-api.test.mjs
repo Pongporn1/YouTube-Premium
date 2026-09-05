@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import handler from '../api/search.js';
-import { createSession } from '../api/auth/session-core.js';
+import { createSession } from '../lib/session-core.js';
 
 process.env.SESSION_SECRET = 'search-tests-only-secret-at-least-thirty-two-characters';
 process.env.ALLOWED_GOOGLE_EMAIL = 'test@example.test';
