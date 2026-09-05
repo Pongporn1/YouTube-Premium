@@ -1210,7 +1210,7 @@ function openVideo(video) {
   elements.player.src = privacyEmbedUrl(video.id);
   elements.playerTitle.textContent = video.title;
   elements.playerChannel.textContent = video.channel;
-  elements.playerStats.textContent = formatViews(video.views);
+  elements.playerStats.textContent = [formatViews(video.views), formatAge(video.publishedAt)].filter(Boolean).join(" • ");
   elements.playerAvatar.replaceChildren();
   elements.playerAvatar.textContent = avatarText(video.channel);
   elements.playerAvatar.style.backgroundColor = avatarColor(video.channel);

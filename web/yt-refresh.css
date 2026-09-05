@@ -1,0 +1,226 @@
+/*
+ * YouTube-style polish layer, loaded last on purpose.
+ * Mobile-first (breakpoint 680px matches styles.css/youtube-layout.css).
+ */
+
+:root {
+  --topbar: 56px;
+}
+
+body {
+  font-family: "Roboto", "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+}
+
+/* ── Top bar: solid, no divider, like the YouTube app ─────────────────── */
+.topbar {
+  background: #0f0f0f;
+  border-bottom: 0;
+}
+
+/* ── Chips row ─────────────────────────────────────────────────────────── */
+.chips {
+  gap: 8px;
+  padding: 8px 12px 10px;
+  background: #0f0f0f;
+}
+
+.chip {
+  min-height: 32px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.chip.active { font-weight: 600; }
+
+/* ── Feed header: YouTube has no big heading above the feed ───────────── */
+.feed-heading {
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.feed-heading h1 {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.refresh-button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 16px;
+  font-size: 13px;
+}
+
+/* ── Personalization banner: one slim line, never a hero card ─────────── */
+.personalization-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+}
+
+.personalization-spark { display: none; }
+
+.personalization-copy strong {
+  margin-bottom: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+@media (max-width: 680px) {
+  .personalization-copy p { display: none; }
+}
+
+.personalization-button {
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 15px;
+  font-size: 12px;
+}
+
+/* ── Feed card typography: YouTube mobile metrics ─────────────────────── */
+.card-body {
+  grid-template-columns: 36px minmax(0, 1fr) 24px;
+  gap: 10px;
+  padding-top: 10px;
+}
+
+.channel-avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 14px;
+}
+
+.card-copy h2 {
+  margin: 0 0 4px;
+  color: #f1f1f1;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.card-copy p {
+  color: #aaaaaa;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.video-card .duration {
+  right: 8px;
+  bottom: 8px;
+  padding: 1px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+/* ── Watch page ────────────────────────────────────────────────────────── */
+.watch-title {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+
+.watch-stats-row {
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.watch-channel-row { margin: 4px 0; }
+
+.channel-info-left { gap: 10px; }
+
+.player-channel-link { font-size: 14px; font-weight: 500; }
+
+.subscribe-btn {
+  height: 34px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+.watch-actions-bar {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin-inline: -20px;
+  padding-inline: 20px;
+}
+
+.watch-actions-bar::-webkit-scrollbar { display: none; }
+
+.watch-action {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 17px;
+  font-size: 13.5px;
+}
+
+/* Player overlay buttons: one tidy row, YouTube-app style */
+.dialog-minimize,
+.dialog-expand {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: #fff;
+  background: rgba(0, 0, 0, .55);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.ad-note { display: none; }
+
+/* ── Bottom nav ────────────────────────────────────────────────────────── */
+.bottom-nav {
+  height: calc(52px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: #0f0f0f;
+  border-top: 0;
+}
+
+.bottom-nav svg { width: 22px; height: 22px; }
+
+.bottom-nav .bottom-nav-label { font-size: 10px; font-weight: 500; }
+
+/* ── Mobile-specific de-clutter (match app breakpoint 680px) ───────────── */
+@media (max-width: 680px) {
+  .data-source-note { display: none; }
+
+  .music-library-shortcuts {
+    gap: 8px;
+    padding: 10px 0 6px;
+  }
+
+  .music-library-shortcuts strong { font-size: 14px; }
+
+  .music-library-shortcuts small { display: none; }
+
+  .music-library-shortcuts button {
+    min-height: 32px;
+    padding: 6px 12px;
+    background: #272727;
+    border: 0;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+
+  .video-grid { gap: 20px 12px; }
+
+  .chips { top: var(--topbar); }
+}
+
+@media (min-width: 681px) {
+  /* Desktop keeps the informational header but tightens it to YouTube scale. */
+  .feed-heading h1 { font-size: 20px; }
+
+  .data-source-note { margin: 8px 0 14px; }
+}
