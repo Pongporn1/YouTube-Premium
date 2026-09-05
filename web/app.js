@@ -1522,11 +1522,15 @@ function unlockApp(user) {
   watchLater = loadWatchLater();
   history = loadJson(HISTORY_KEY, []);
   personalization = loadPersonalization();
-  // Known connection but no token yet (fresh reload): re-mint silently from
-  // the refresh-token cookie so the viewer never has to click connect again.
-  if (hasYouTubeConnection() && !validYouTubeToken()) {
+  // Re-mint silently from the refresh-token cookie whenever a token is
+  // missing. With a known connection this just revives the token; right after
+  // the one-time consent it also builds the first personal snapshot, which is
+  // what makes the connect banner go away.
+  if (!validYouTubeToken()) {
     void serverYouTubeToken().then((token) => {
-      if (token) scheduleAutomaticPersonalizationSync();
+      if (!token) return;
+      if (hasYouTubeConnection()) scheduleAutomaticPersonalizationSync();
+      else void connectYouTubePersonalization({ automatic: true });
     });
   }
   cacheOwner = String(user?.sub || user?.email || "");
@@ -1969,6 +1973,8 @@ async function initializeAuth() {
       unlockApp(session.user);
       if (youtubeReturnMarker === "connected") {
         setStatus("เชื่อมข้อมูล YouTube แล้ว — ครั้งต่อไประบบจะต่อสิทธิ์ให้เองโดยไม่ต้องกด");
+      } else if (youtubeReturnMarker === "error") {
+        setStatus("เชื่อมข้อมูล YouTube ไม่สำเร็จ กรุณาลองอีกครั้ง", true);
       }
       return;
     }
