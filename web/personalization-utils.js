@@ -1,11 +1,14 @@
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 
-const WATCH_CHANNEL_WEIGHT = 4;
+const WATCH_CHANNEL_WEIGHT = 5;
 const WATCH_CATEGORY_WEIGHT = 2;
 const RECENCY_BONUS = [[14, 6], [45, 4], [120, 2], [365, 0]];
 const UNKNOWN_AGE_SCORE = -2;
-const OLD_VIDEO_SCORE = -6;
+const OLD_VIDEO_SCORE = -10;
 const MAX_AFFINITY_COUNT = 12;
+// Real YouTube's home feed is dominated by uploads from channels the viewer
+// actually follows; trending only appears as light seasoning.
+const PERSONAL_PER_TRENDING = 4;
 
 function durationLabel(value) {
   const match = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/.exec(String(value || ""));
@@ -99,7 +102,7 @@ export function mixPersonalizedFeed(personalized, trending, { history = [], limi
 
   const result = [];
   while (result.length < limit && (rankedPersonal.length || rankedPublic.length)) {
-    for (let count = 0; count < 3 && rankedPersonal.length && result.length < limit; count += 1) {
+    for (let count = 0; count < PERSONAL_PER_TRENDING && rankedPersonal.length && result.length < limit; count += 1) {
       result.push(rankedPersonal.shift().video);
     }
     if (rankedPublic.length && result.length < limit) result.push(rankedPublic.shift().video);
