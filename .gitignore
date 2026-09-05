@@ -18,3 +18,7 @@ UserData/
 Logs/
 settings.json
 *.tmp
+
+# Local env diagnostics must never be committed.
+.env.debug
+.env.quota-check

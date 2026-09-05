@@ -1522,6 +1522,13 @@ function unlockApp(user) {
   watchLater = loadWatchLater();
   history = loadJson(HISTORY_KEY, []);
   personalization = loadPersonalization();
+  // Known connection but no token yet (fresh reload): re-mint silently from
+  // the refresh-token cookie so the viewer never has to click connect again.
+  if (hasYouTubeConnection() && !validYouTubeToken()) {
+    void serverYouTubeToken().then((token) => {
+      if (token) scheduleAutomaticPersonalizationSync();
+    });
+  }
   cacheOwner = String(user?.sub || user?.email || "");
   const label = String(user?.name || "MyTube").trim();
   const initials = userInitials(label);
@@ -1584,9 +1591,35 @@ async function getGoogleClientId() {
   return googleClientId;
 }
 
-function requestYouTubeAccessToken({ silent = false } = {}) {
-  if (youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000) return Promise.resolve(youtubeAccessToken);
-  if (silent) return Promise.reject(new Error("สิทธิ์ YouTube หมดอายุ กรุณากดเชื่อมอีกครั้ง"));
+// Mints an access token from the refresh-token cookie kept by
+// api/youtube-auth. No popup, no consent screen — this is how the app stays
+// connected across reloads after the one-time consent.
+async function serverYouTubeToken() {
+  try {
+    const response = await fetch("/api/youtube-auth?action=token", { headers: { Accept: "application/json" } });
+    if (!response.ok) return null;
+    const data = await response.json().catch(() => ({}));
+    const accessToken = String(data.accessToken || "");
+    if (!accessToken) return null;
+    const check = await fetch("/api/auth/youtube-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ accessToken })
+    });
+    if (!check.ok) return null;
+    youtubeAccessToken = accessToken;
+    youtubeTokenExpiresAt = Date.now() + Math.max(300, Number(data.expiresIn) || 3600) * 1000;
+    return youtubeAccessToken;
+  } catch {
+    return null;
+  }
+}
+
+async function requestYouTubeAccessToken({ silent = false } = {}) {
+  if (youtubeAccessToken && Date.now() < youtubeTokenExpiresAt - 60000) return youtubeAccessToken;
+  const serverToken = await serverYouTubeToken();
+  if (serverToken) return serverToken;
+  if (silent) throw new Error("สิทธิ์ YouTube หมดอายุ กรุณากดเชื่อมอีกครั้ง");
   const start = (clientId) => new Promise((resolve, reject) => {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
@@ -1616,8 +1649,8 @@ function requestYouTubeAccessToken({ silent = false } = {}) {
   if (window.google?.accounts?.oauth2 && (youtubeDataClientId || googleClientId)) {
     return start(youtubeDataClientId || googleClientId);
   }
-  return Promise.all([loadGoogleIdentity(), getGoogleClientId()])
-    .then(() => start(youtubeDataClientId || googleClientId));
+  await Promise.all([loadGoogleIdentity(), getGoogleClientId()]);
+  return start(youtubeDataClientId || googleClientId);
 }
 
 async function authorizedYouTubeRequest(resource, parameters, token, signal) {
@@ -1922,10 +1955,19 @@ function consumeAuthError() {
 
 async function initializeAuth() {
   try {
+    const youtubeReturnMarker = new URL(window.location.href).searchParams.get("youtube");
+    if (youtubeReturnMarker) {
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete("youtube");
+      history.replaceState(null, "", `${clean.pathname}${clean.search}${clean.hash}`);
+    }
     const sessionResponse = await fetch("/api/auth/session", { headers: { Accept: "application/json" } });
     const session = await sessionResponse.json().catch(() => ({}));
     if (session.authenticated) {
       unlockApp(session.user);
+      if (youtubeReturnMarker === "connected") {
+        setStatus("เชื่อมข้อมูล YouTube แล้ว — ครั้งต่อไประบบจะต่อสิทธิ์ให้เองโดยไม่ต้องกด");
+      }
       return;
     }
     const configResponse = await fetch("/api/auth/config", { headers: { Accept: "application/json" } });
@@ -1983,7 +2025,11 @@ elements.accountPrivacy.addEventListener("click", () => {
   elements.privacyDialog.showModal();
 });
 elements.accountLogout.addEventListener("click", () => performLogout(elements.accountLogout));
-elements.connectYouTube.addEventListener("click", connectYouTubePersonalization);
+// The one-time link runs Google's consent as a full-page redirect (immune to
+// popup blockers); the callback drops a refresh-token cookie and returns here.
+elements.connectYouTube.addEventListener("click", () => {
+  window.location.assign("/api/youtube-auth");
+});
 elements.accountYouTube.addEventListener("click", connectYouTubePersonalization);
 elements.clearPersonalization.addEventListener("click", clearPersonalizedFeed);
 elements.videoMenu.addEventListener("click", async (event) => {
