@@ -1901,8 +1901,11 @@ async function connectYouTubePersonalization({ automatic = false } = {}) {
     if (activeView === "home") await fetchVideos(videoRequestUrl());
     else if (ACCOUNT_VIEWS.includes(activeView)) activateView(activeView);
   } catch (error) {
-    failed = !automatic;
-    finalMessage = automatic ? "" : error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ";
+    // First-connect failures must be visible so the real cause shows on the
+    // banner; background refreshes stay quiet while a saved snapshot exists.
+    const hasSnapshot = Boolean(personalization.updatedAt || personalization.items.length);
+    failed = !automatic || !hasSnapshot;
+    finalMessage = failed ? (error.message || "เชื่อมข้อมูล YouTube ไม่สำเร็จ") : "";
   } finally {
     personalizationBusy = false;
     updatePersonalizationPanel(finalMessage, failed);
