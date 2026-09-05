@@ -1,0 +1,79 @@
+/* Shared visual language; player and account interaction rules stay in styles.css. */
+:root { --body: Arial, "Leelawadee UI", "Noto Sans Thai", Tahoma, sans-serif; }
+body { font-size: 14px; line-height: 1.4; }
+.brand { gap: 4px; }
+.brand strong { font-size: 23px; letter-spacing: -1.2px; font-weight: 750; }
+.brand small { margin-left: 3px; }
+.brand-mark { width: 32px; height: 22px; border-radius: 7px; }
+.sidebar nav { gap: 0; }
+.sidebar .nav-item { height: 40px; min-height: 40px; font-weight: 400; font-size: 14px; line-height: 20px; }
+.sidebar .nav-item.active { background: #272727; font-weight: 600; }
+.sidebar .nav-item > span { white-space: nowrap; }
+.sidebar .nav-item:hover { background: #272727; }
+.sidebar .nav-item.active:hover { background: #3d3d3d; }
+.sidebar-heading { height: 40px; font-size: 16px; font-weight: 600; }
+.sidebar-divider { background: #3f3f3f; margin-block: 12px; }
+.sidebar-scroll { scrollbar-color: transparent transparent; }
+.sidebar-scroll:hover, .sidebar-scroll:focus-within { scrollbar-color: #717171 transparent; }
+.sidebar-footer { padding: 16px 12px; color: #717171; }
+.sidebar-footer p { color: #aaa; font-size: 12px; font-weight: 500; }
+.sidebar-footer small { font-size: 11px; line-height: 1.5; }
+.chip { min-height: 32px; padding: 5px 12px; font-size: 14px; font-weight: 600; }
+.card-copy h2 { font-size: 16px; line-height: 22px; font-weight: 600; margin-bottom: 4px; }
+.card-copy p, .channel-link { font-size: 14px; line-height: 20px; color: #aaa; }
+.thumbnail-button { border-radius: 12px; }
+.duration { font-size: 12px; font-weight: 600; line-height: 16px; }
+.data-source-note { font-size: 12px; margin: 0 0 16px; color: #888; }
+.feed-heading .eyebrow { display: none; }
+.feed-heading h1 { font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
+.youtube-collection { border: 0; background: transparent; padding: 0; gap: 8px; border-radius: 12px; }
+.youtube-collection:hover { background: #1c1c1c; }
+.youtube-collection img { background: #181818; object-fit: cover; }
+.youtube-collection strong { font-size: 16px; line-height: 22px; }
+.youtube-collection span { font-size: 13px; }
+.account-menu { background: #282828; border: 0; border-radius: 12px; }
+.account-action { font-size: 14px; border-radius: 0; }
+.account-actions { padding-inline: 0; border-color: #454545; }
+.account-action:hover { background: #404040; }
+@media (min-width: 681px) {
+  .topbar { padding-inline: 16px 28px; }
+  .topbar .brand { flex-basis: 168px; }
+  .header-actions { gap: 16px; margin-left: 24px; }
+  .content-shell { padding-inline: 24px; }
+  .video-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px 16px; }
+  .card-body { grid-template-columns: 36px minmax(0,1fr) 24px; gap: 12px; }
+}
+@media (min-width: 1760px) { .video-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 681px) and (max-width: 1100px) {
+  .topbar .brand { flex-basis: auto; margin-right: 12px; }
+  .header-actions { gap: 8px; margin-left: 4px; }
+  .video-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 681px) and (max-width: 1200px) {
+  .sidebar .nav-item { height: 74px; padding: 12px 0; font-size: 10px; line-height: 14px; }
+}
+@media (min-width: 681px) {
+  body.sidebar-collapsed .sidebar .nav-item { height: 74px; padding: 12px 0; font-size: 10px; line-height: 14px; }
+}
+@media (max-width: 680px) {
+  .brand strong { font-size: 22px; }
+  .chips { gap: 8px; padding-block: 8px; min-height: 48px; }
+  .video-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .thumbnail-wrap { margin-inline: 0; }
+  .thumbnail-button { border-radius: 0; }
+  .card-body { padding: 12px 12px 0; grid-template-columns: 36px minmax(0,1fr) 24px; gap: 12px; }
+  .channel-avatar { width: 36px; height: 36px; }
+  .card-copy h2 { font-size: 14px; line-height: 20px; font-weight: 500; }
+  .card-copy p, .channel-link { font-size: 12px; line-height: 18px; }
+  .bottom-nav { background: #0f0f0f; box-shadow: none; backdrop-filter: none; }
+  .bottom-nav .mobile-create-icon { border: 0; width: 36px; height: 36px; background: #272727; }
+  .data-source-note { margin-inline: 12px; font-size: 11px; }
+  .youtube-collection { margin-inline: 12px; }
+  .feed-heading h1 { font-size: 24px; }
+  .account-menu { border-radius: 16px 16px 0 0; }
+  .account-action { min-height: 52px; font-size: 15px; padding-inline: 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .sidebar, .content-shell { transition: none; }
+}
