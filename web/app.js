@@ -467,7 +467,11 @@ function render(items = videos) {
 
 function videoRequestUrl(pageToken = "") {
   const params = new URLSearchParams();
-  if (activeView === "search") params.set("q", activeQuery);
+  if (activeView === "search") {
+    params.set("q", activeQuery);
+    params.set("order", document.getElementById("search-order").value);
+    params.set("duration", document.getElementById("search-duration").value);
+  }
   else if (activeCategory) params.set("category", activeCategory);
   if (pageToken) params.set("pageToken", pageToken);
   return `/api/${activeView === "search" ? "search" : "feed"}?${params.toString()}`;
@@ -515,7 +519,7 @@ async function fetchVideos(url, { append = false } = {}) {
     if (requestId === requestSerial) {
       loadingMore = false;
       elements.feedLoader.hidden = true;
-      if (!append && nextPageToken && ["home", "search"].includes(activeView)) {
+      if (!append && nextPageToken && activeView === "home") {
         window.setTimeout(() => { void prefetchFeedPages(); }, 0);
       }
       elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
@@ -530,7 +534,7 @@ function loadNextVideoPage() {
 
 async function prefetchFeedPages(maxPages = 3) {
   let loaded = 0;
-  while (nextPageToken && !loadingMore && loaded < maxPages && ["home", "search"].includes(activeView)) {
+  while (nextPageToken && !loadingMore && loaded < maxPages && activeView === "home") {
     const tokenBefore = nextPageToken;
     await fetchVideos(videoRequestUrl(tokenBefore), { append: true });
     loaded += 1;
@@ -1734,7 +1738,13 @@ elements.searchForm.addEventListener("submit", (event) => {
     return;
   }
   performSearch(query);
+  elements.searchInput.blur();
 });
+for (const id of ["search-order", "search-duration"]) {
+  document.getElementById(id).addEventListener("change", () => {
+    if (activeView === "search") fetchVideos(videoRequestUrl());
+  });
+}
 elements.mobileSearchClose.addEventListener("click", () => {
   if (activeView === "search") {
     elements.searchInput.value = "";

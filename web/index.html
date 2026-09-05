@@ -173,6 +173,10 @@
         </div>
         <button class="refresh-button" id="refresh-button" type="button" aria-label="โหลดรายการใหม่">↻ <span>รีเฟรช</span></button>
       </div>
+      <div class="search-filters" aria-label="ตัวกรองการค้นหา">
+        <label>เรียงตาม <select id="search-order"><option value="relevance">ความเกี่ยวข้อง</option><option value="date">อัปโหลดล่าสุด</option><option value="viewCount">ยอดดู</option></select></label>
+        <label>ความยาว <select id="search-duration"><option value="any">ทั้งหมด</option><option value="short">สั้นกว่า 4 นาที</option><option value="medium">4–20 นาที</option><option value="long">ยาวกว่า 20 นาที</option></select></label>
+      </div>
       <div class="history-tools" id="history-tools" hidden>
         <label class="history-search" for="history-search">
           <span class="search-icon" aria-hidden="true"></span>

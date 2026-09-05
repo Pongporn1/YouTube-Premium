@@ -18,12 +18,16 @@ export default async function handler(request, response) {
       regionCode: "TH",
       relevanceLanguage: "th",
       safeSearch: "moderate",
+      order: ["relevance", "date", "viewCount"].includes(request.query.order) ? request.query.order : "relevance",
+      videoDuration: ["short", "medium", "long"].includes(request.query.duration) ? request.query.duration : "any",
       pageToken: normalizePageToken(request.query.pageToken)
     });
     const ids = (search.items || []).map((item) => item?.id?.videoId).filter(Boolean).join(",");
     const details = ids ? await youtubeRequest("videos", { part: "snippet,contentDetails,statistics", id: ids }) : { items: [] };
-    response.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=1800");
-    const items = await addChannelThumbnails((details.items || []).map(formatVideo).filter(Boolean));
+    response.setHeader("Cache-Control", "private, no-store");
+    const byId = new Map((details.items || []).map(item => [item.id, item]));
+    const ordered = ids.split(",").map(id => byId.get(id)).filter(Boolean);
+    const items = await addChannelThumbnails(ordered.map(formatVideo).filter(Boolean));
     return response.status(200).json({
       items,
       nextPageToken: String(search.nextPageToken || "")
