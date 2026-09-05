@@ -14,7 +14,7 @@ A mobile-responsive, local-first YouTube viewing portal for Vercel. The home scr
 
 ## Privacy model
 
-- Production access is gated by Google Sign-In and an allowed-email check on the server.
+- Production access is gated by Google Sign-In and an allowed-email check on the server. `ALLOWED_GOOGLE_EMAIL` accepts a comma-separated list to allow multiple accounts (e.g. `you@gmail.com,second@gmail.com`).
 - Google Sign-In authenticates the visitor only; it does not grant access to YouTube account data.
 - MyTube history and Watch Later use Local Storage on the canonical production origin only.
 - Existing YouTube history and Watch Later data can be imported from pasted links or Google Takeout JSON/CSV files.

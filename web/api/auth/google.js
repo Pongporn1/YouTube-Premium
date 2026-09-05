@@ -47,9 +47,15 @@ export default async function handler(request, response) {
     return response.status(403).json({ error: "คำขอเข้าสู่ระบบไม่ถูกต้อง" });
   }
   const clientId = process.env.GOOGLE_CLIENT_ID;
-  const allowedEmail = String(process.env.ALLOWED_GOOGLE_EMAIL || "").trim().toLowerCase();
+  // Comma-separated list so the owner can allow more than one Google account.
+  const allowedEmails = new Set(
+    String(process.env.ALLOWED_GOOGLE_EMAIL || "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean)
+  );
   const credential = String(body.credential || "");
-  if (!clientId || !allowedEmail || credential.length < 100 || credential.length > 5000) {
+  if (!clientId || allowedEmails.size === 0 || credential.length < 100 || credential.length > 5000) {
     return isRedirectFlow
       ? redirectHome(response, "failed")
       : response.status(400).json({ error: "การตั้งค่า Google Sign-In ไม่สมบูรณ์" });
@@ -59,7 +65,7 @@ export default async function handler(request, response) {
     const ticket = await client.verifyIdToken({ idToken: credential, audience: clientId });
     const payload = ticket.getPayload();
     const email = String(payload?.email || "").toLowerCase();
-    if (!payload?.sub || payload.email_verified !== true || email !== allowedEmail) {
+    if (!payload?.sub || payload.email_verified !== true || !allowedEmails.has(email)) {
       return isRedirectFlow
         ? redirectHome(response, "not_allowed")
         : response.status(403).json({ error: "บัญชี Google นี้ไม่ได้รับอนุญาต" });
