@@ -4,6 +4,7 @@ import handler from '../api/channel.js';
 import { createSession } from '../api/auth/session-core.js';
 
 process.env.SESSION_SECRET = 'channel-tests-only-secret-at-least-thirty-two-characters';
+process.env.ALLOWED_GOOGLE_EMAIL = 'test@example.test';
 function response() {
   return { headers: {}, code: 0, data: null, setHeader(k,v) { this.headers[k] = v; }, status(code) { this.code = code; return this; }, json(data) { this.data = data; return this; } };
 }

@@ -4,6 +4,7 @@ import handler from '../api/related.js';
 import { createSession } from '../api/auth/session-core.js';
 
 process.env.SESSION_SECRET = 'related-tests-only-secret-at-least-thirty-two-chars';
+process.env.ALLOWED_GOOGLE_EMAIL = 'test@example.test';
 process.env.YOUTUBE_API_KEY = 'test-only';
 const headers = () => ({cookie: `mytube_session=${createSession({sub:'test',email:'test@example.test'})}`});
 const response = () => ({headers:{}, setHeader(k,v){this.headers[k]=v;}, status(code){this.code=code;return this;}, json(data){this.data=data;return this;}});

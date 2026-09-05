@@ -4,6 +4,7 @@ import { createSession, readSession } from "../api/auth/session-core.js";
 import sessionHandler from "../api/auth/session.js";
 
 process.env.SESSION_SECRET = "test-only-secret-with-at-least-thirty-two-characters";
+process.env.ALLOWED_GOOGLE_EMAIL = "owner@example.test";
 
 test("creates and verifies a signed private session", () => {
   const now = Date.UTC(2026, 8, 4);

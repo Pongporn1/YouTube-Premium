@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { isApproved } from "./family-policy.js";
 
 const COOKIE_NAME = "mytube_session";
 const MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -43,6 +44,7 @@ export function readSession(request, now = Date.now()) {
     if (expected.length !== received.length || !timingSafeEqual(expected, received)) return null;
     const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     if (!user.sub || !user.email || Number(user.exp) <= Math.floor(now / 1000)) return null;
+    if (!isApproved(user.email)) return null;
     return user;
   } catch {
     return null;

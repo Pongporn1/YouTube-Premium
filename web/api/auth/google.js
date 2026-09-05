@@ -1,5 +1,6 @@
 import { OAuth2Client } from "google-auth-library";
 import { createSession, setSessionCookie } from "./session-core.js";
+import { allowedAccounts } from "./family-policy.js";
 
 function requestBody(request) {
   if (request.body && typeof request.body === "object") return request.body;
@@ -48,12 +49,7 @@ export default async function handler(request, response) {
   }
   const clientId = process.env.GOOGLE_CLIENT_ID;
   // Comma-separated list so the owner can allow more than one Google account.
-  const allowedEmails = new Set(
-    String(process.env.ALLOWED_GOOGLE_EMAIL || "")
-      .split(",")
-      .map((email) => email.trim().toLowerCase())
-      .filter(Boolean)
-  );
+  const allowedEmails = allowedAccounts();
   const credential = String(body.credential || "");
   if (!clientId || allowedEmails.size === 0 || credential.length < 100 || credential.length > 5000) {
     return isRedirectFlow
