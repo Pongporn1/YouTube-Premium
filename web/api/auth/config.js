@@ -6,5 +6,13 @@ export default function handler(request, response) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   response.setHeader("Cache-Control", "private, no-store");
   if (!clientId) return response.status(503).json({ error: "Google Sign-In is not configured" });
-  return response.status(200).json({ clientId });
+  // Key COUNT only (never values) so the deployed runtime can be probed for
+  // whether every configured YouTube API key actually reached the function.
+  const configuredKeys = [
+    process.env.YOUTUBE_API_KEY,
+    String(process.env.YOUTUBE_API_KEYS || "").split(","),
+    process.env.YOUTUBE_API_KEY_2,
+    process.env.YOUTUBE_API_KEY_3,
+  ].flat().map((key) => String(key || "").trim()).filter(Boolean);
+  return response.status(200).json({ clientId, youtubeApiKeys: configuredKeys.length });
 }

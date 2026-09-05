@@ -138,7 +138,7 @@ let activeKeyIndex = 0;
 function apiKeys() {
   const values = KEY_ENV_NAMES
     .flatMap((name) => String(process.env[name] || "").split(","))
-    .map((key) => key.trim())
+    .map((key) => key.trim().replace(/^["'`]+|["'`]+$/g, ""))
     .filter(Boolean);
   return [...new Set(values)];
 }
