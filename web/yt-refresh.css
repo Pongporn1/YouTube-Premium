@@ -193,7 +193,32 @@ body {
 
 .ad-note { display: none; }
 
-/* ── Bottom nav ────────────────────────────────────────────────────────── */
+/* ── YouTube-app sheet gestures: swipe down = minimize ─────────────────── */
+.player-frame { position: relative; }
+
+.player-gesture {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 62%;
+  z-index: 3;
+  touch-action: none;
+}
+
+.watch-dialog { transition: transform 260ms cubic-bezier(.2, .7, .3, 1); }
+.watch-dialog.dragging { transition: none; }
+
+.mini-player .player-gesture { inset: 0; height: 100%; }
+
+@media (min-width: 681px) {
+  .player-gesture { display: none; }
+}
+
+@media (max-width: 680px) {
+  /* Swipe gestures replace the minimize/expand buttons on the full player. */
+  .watch-dialog:not(.mini-player) .dialog-minimize,
+  .watch-dialog:not(.mini-player) .dialog-expand { display: none !important; }
+}
+
 .bottom-nav {
   height: calc(52px + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);

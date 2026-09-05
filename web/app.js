@@ -2218,6 +2218,47 @@ elements.expandPlayer.addEventListener("click", (event) => {
   event.stopPropagation();
   expandVideo();
 });
+// YouTube-app sheet gestures: drag the watch page down to shrink it into the
+// mini player, then swipe up/down on the mini player to expand or dismiss.
+// Touches on the cross-origin player iframe never reach this document, so a
+// dedicated overlay handles the gesture over the video surface.
+const playerFrame = document.querySelector(".player-frame");
+if (playerFrame) {
+  const gestureLayer = document.createElement("div");
+  gestureLayer.className = "player-gesture";
+  gestureLayer.setAttribute("aria-hidden", "true");
+  playerFrame.appendChild(gestureLayer);
+  let gestureStartY = 0;
+  let gestureLastDy = 0;
+  let gestureLive = false;
+  gestureLayer.addEventListener("touchstart", (event) => {
+    gestureStartY = event.touches[0].clientY;
+    gestureLastDy = 0;
+    gestureLive = true;
+  }, { passive: true });
+  gestureLayer.addEventListener("touchmove", (event) => {
+    if (!gestureLive || !elements.watchDialog.open) return;
+    gestureLastDy = event.touches[0].clientY - gestureStartY;
+    if (!elements.watchDialog.classList.contains("mini-player") && gestureLastDy > 14) {
+      event.preventDefault();
+      elements.watchDialog.classList.add("dragging");
+      elements.watchDialog.style.transform = `translateY(${Math.min(gestureLastDy, 420)}px)`;
+    }
+  }, { passive: false });
+  gestureLayer.addEventListener("touchend", () => {
+    if (!gestureLive) return;
+    gestureLive = false;
+    if (!elements.watchDialog.classList.contains("mini-player")) {
+      elements.watchDialog.classList.remove("dragging");
+      elements.watchDialog.style.transform = "";
+      if (gestureLastDy > 90) minimizeVideo();
+    } else if (gestureLastDy < -40) {
+      expandVideo();
+    } else if (gestureLastDy > 40) {
+      closeVideo();
+    }
+  });
+}
 elements.shareCurrent.addEventListener("click", shareCurrentVideo);
 elements.watchDialog.addEventListener("click", (event) => {
   if (elements.watchDialog.classList.contains("mini-player")) {
