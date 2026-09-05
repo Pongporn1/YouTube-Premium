@@ -17,9 +17,10 @@ const PERSONALIZATION_KEY = "mytube-private-personalization-v1";
 const LAST_HOME_ORDER_KEY = "mytube-private-home-order-v1";
 const MAX_HISTORY = 1000;
 const MAX_YOUTUBE_PAGES = 100;
-const MAX_SUBSCRIPTION_CHANNELS = 250;
+const MAX_SUBSCRIPTION_CHANNELS = 60;
 const MAX_PERSONALIZED_VIDEOS = 1000;
-const UPLOADS_PER_CHANNEL = 10;
+const UPLOADS_PER_CHANNEL = 5;
+const MAX_LIKED_PAGES = 8;
 const PERSONALIZATION_REFRESH_MS = 6 * 60 * 60 * 1000;
 const PERSONALIZATION_WORKERS = 6;
 const MAX_SEARCH_QUERY_LENGTH = 100;
@@ -97,6 +98,9 @@ const elements = {
   commentsStatus: document.getElementById("comments-status"),
   commentsList: document.getElementById("comments-list"),
   loadMoreComments: document.getElementById("load-more-comments"),
+  relatedList: document.getElementById("related-list"),
+  relatedStatus: document.getElementById("related-status"),
+  loadMoreRelated: document.getElementById("load-more-related"),
   privacyButton: document.getElementById("privacy-button"),
   privacyDialog: document.getElementById("privacy-dialog"),
   closePrivacy: document.getElementById("close-privacy"),
@@ -134,6 +138,11 @@ let comments = [];
 let commentsNextPageToken = "";
 let commentsVideoId = "";
 let commentsTotal = 0;
+let relatedVideos = [];
+let relatedNextPageToken = "";
+let relatedVideoId = "";
+let relatedController = null;
+let relatedSerial = 0;
 let googleClientId = "";
 let youtubeAccessToken = "";
 let youtubeTokenExpiresAt = 0;
@@ -999,6 +1008,92 @@ async function loadComments(videoId, { append = false } = {}) {
   }
 }
 
+function createRelatedCard(video) {
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "related-card";
+  card.setAttribute("aria-label", `เล่น ${video.title}`);
+  const thumb = document.createElement("span");
+  thumb.className = "related-thumb";
+  const image = document.createElement("img");
+  image.src = video.thumbnail;
+  image.alt = "";
+  image.loading = "lazy";
+  thumb.append(image);
+  if (video.duration) {
+    const duration = document.createElement("span");
+    duration.className = "duration";
+    duration.textContent = video.duration;
+    thumb.append(duration);
+  }
+  const copy = document.createElement("span");
+  copy.className = "related-copy";
+  const title = document.createElement("strong");
+  title.textContent = video.title;
+  const channel = document.createElement("span");
+  channel.textContent = video.channel;
+  const stats = document.createElement("span");
+  stats.textContent = `${formatViews(video.views)} • ${formatAge(video.publishedAt)}`;
+  copy.append(title, channel, stats);
+  card.append(thumb, copy);
+  card.addEventListener("click", () => openVideo(video));
+  return card;
+}
+
+function renderRelated() {
+  elements.relatedList.replaceChildren(...relatedVideos.map(createRelatedCard));
+  elements.loadMoreRelated.hidden = !relatedNextPageToken;
+  elements.loadMoreRelated.disabled = false;
+}
+
+async function loadRelated(videoId, { append = false } = {}) {
+  if (!videoId || (append && !relatedNextPageToken)) return;
+  if (!append) {
+    relatedController?.abort();
+    relatedVideos = [];
+    relatedNextPageToken = "";
+    relatedVideoId = videoId;
+    renderRelated();
+  }
+  const controller = new AbortController();
+  const requestId = ++relatedSerial;
+  relatedController = controller;
+  elements.relatedStatus.textContent = append ? "กำลังโหลดวิดีโอแนะนำเพิ่มเติม…" : "กำลังค้นหาวิดีโอแนะนำ…";
+  elements.loadMoreRelated.disabled = true;
+  const params = new URLSearchParams({ id: videoId });
+  if (append) params.set("pageToken", relatedNextPageToken);
+  // Session cache keeps re-opening the same video from spending search quota again.
+  const cacheKey = `related:${videoId}:${append ? relatedNextPageToken : "first"}`;
+  const cached = resultCache.get(cacheOwner, cacheKey);
+  try {
+    let data = cached?.fresh ? cached.data : null;
+    if (!data) {
+      const response = await fetch(`/api/related?${params.toString()}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal
+      });
+      data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "โหลดวิดีโอแนะนำไม่สำเร็จ");
+      resultCache.put(cacheOwner, cacheKey, data);
+    }
+    if (requestId !== relatedSerial || relatedVideoId !== videoId || currentVideo?.id !== videoId) return;
+    const incoming = Array.isArray(data.items) ? data.items : [];
+    relatedVideos = append
+      ? [...new Map([...relatedVideos, ...incoming].map((video) => [video.id, video])).values()]
+      : incoming;
+    relatedNextPageToken = String(data.nextPageToken || "");
+    renderRelated();
+    elements.relatedStatus.textContent = relatedVideos.length ? "" : "ยังไม่มีวิดีโอแนะนำสำหรับวิดีโอนี้";
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    if (requestId !== relatedSerial || relatedVideoId !== videoId) return;
+    elements.relatedStatus.textContent = error.message || "โหลดวิดีโอแนะนำไม่สำเร็จ กรุณาลองใหม่";
+    elements.loadMoreRelated.disabled = false;
+  } finally {
+    if (relatedController === controller) relatedController = null;
+  }
+}
+
 function openVideo(video) {
   if (elements.watchDialog.open) elements.watchDialog.close();
   elements.watchDialog.classList.remove("mini-player");
@@ -1038,7 +1133,9 @@ function openVideo(video) {
   elements.openYouTube.href = canonicalWatchUrl(video.id);
   updatePlayerWatchLater();
   elements.watchDialog.showModal();
+  elements.watchDialog.scrollTop = 0;
   loadComments(video.id);
+  loadRelated(video.id);
 }
 
 function minimizeVideo() {
@@ -1071,6 +1168,14 @@ function closeVideo() {
   commentsTotal = 0;
   renderComments();
   elements.commentsStatus.textContent = "เลือกวิดีโอเพื่อดูความคิดเห็น";
+  relatedSerial += 1;
+  relatedController?.abort();
+  relatedController = null;
+  relatedVideoId = "";
+  relatedNextPageToken = "";
+  relatedVideos = [];
+  renderRelated();
+  elements.relatedStatus.textContent = "";
   currentVideo = null;
 }
 
@@ -1452,12 +1557,12 @@ async function loadSubscriptions(token) {
   return { items: items.slice(0, MAX_SUBSCRIPTION_CHANNELS), totalResults };
 }
 
-async function loadPlaylistVideoIds(playlistId, token) {
+async function loadPlaylistVideoIds(playlistId, token, { maxPages = MAX_YOUTUBE_PAGES } = {}) {
   const ids = [];
   let pageToken = "";
   let totalResults = 0;
   const seenTokens = new Set();
-  for (let page = 0; page < MAX_YOUTUBE_PAGES && ids.length < MAX_PERSONALIZED_VIDEOS; page += 1) {
+  for (let page = 0; page < maxPages && ids.length < MAX_PERSONALIZED_VIDEOS; page += 1) {
     const data = await authorizedYouTubeRequest("playlistItems", {
       part: "contentDetails,snippet",
       playlistId,
@@ -1504,7 +1609,7 @@ async function buildPersonalizationSnapshot(token) {
   const selectedSubscriptionIds = shuffledCopy(subscriptionIds).slice(0, MAX_SUBSCRIPTION_CHANNELS);
 
   const [likes, selectedChannels] = await Promise.all([
-    likesPlaylistId ? loadPlaylistVideoIds(likesPlaylistId, token) : Promise.resolve({ ids: [], totalResults: 0 }),
+    likesPlaylistId ? loadPlaylistVideoIds(likesPlaylistId, token, { maxPages: MAX_LIKED_PAGES }) : Promise.resolve({ ids: [], totalResults: 0 }),
     loadChannelDetails(selectedSubscriptionIds, "snippet,contentDetails", token).then((items) => ({ items }))
   ]);
 
@@ -1941,6 +2046,9 @@ mobileViewport.addEventListener("change", (event) => {
 elements.favoriteCurrent.addEventListener("click", () => { if (currentVideo) toggleWatchLater(currentVideo); });
 elements.loadMoreComments.addEventListener("click", () => {
   if (commentsVideoId) loadComments(commentsVideoId, { append: true });
+});
+elements.loadMoreRelated.addEventListener("click", () => {
+  if (relatedVideoId) loadRelated(relatedVideoId, { append: true });
 });
 elements.commentsOrder.addEventListener("change", () => {
   if (currentVideo) loadComments(currentVideo.id);

@@ -36,7 +36,7 @@ test('search forwards real filters and pagination while preserving relevance ord
   assert.equal(params.get('order'),'date');
   assert.equal(params.get('videoDuration'),'long');
   assert.equal(params.get('pageToken'),'PAGE2');
-  assert.equal(result.headers['Cache-Control'],'private, no-store');
+  assert.equal(result.headers['Cache-Control'],'public, s-maxage=600, stale-while-revalidate=1800');
   const invalid=response();
   await handler({method:'GET',query:{q:'music',order:'invalid',duration:'invalid'},headers:headers()},invalid);
   assert.equal(calls[2].searchParams.get('order'),'relevance');

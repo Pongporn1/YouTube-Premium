@@ -23,6 +23,7 @@ A mobile-responsive, local-first YouTube viewing portal for Vercel. The home scr
 - Trending and search data comes from YouTube Data API v3 through server-only endpoints.
 - `YOUTUBE_API_KEY` must be a Vercel Secret and should be restricted to YouTube Data API v3.
 - Search runs only after form submission to avoid unnecessary quota usage.
+- The free quota is 10,000 units/day per Google Cloud project (`search.list` costs 100 units per call) and resets at midnight Pacific Time. To stay within it, search and related-video responses (public, identical for every viewer) are cached at the CDN for a few minutes, and the client caches them per session.
 - Video playback remains inside YouTube's cross-origin embed. A Vercel web app cannot inspect, modify, or guarantee ad blocking inside that player.
 
 ## Local checks

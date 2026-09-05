@@ -24,7 +24,9 @@ export default async function handler(request, response) {
     });
     const ids = (search.items || []).map((item) => item?.id?.videoId).filter(Boolean).join(",");
     const details = ids ? await youtubeRequest("videos", { part: "snippet,contentDetails,statistics", id: ids }) : { items: [] };
-    response.setHeader("Cache-Control", "private, no-store");
+    // Public results identical for every viewer: brief CDN caching saves the
+    // 10,000-unit daily quota without exposing any account data.
+    response.setHeader("Cache-Control", "public, s-maxage=600, stale-while-revalidate=1800");
     const byId = new Map((details.items || []).map(item => [item.id, item]));
     const ordered = ids.split(",").map(id => byId.get(id)).filter(Boolean);
     const items = await addChannelThumbnails(ordered.map(formatVideo).filter(Boolean));

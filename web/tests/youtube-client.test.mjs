@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatCommentThread, formatVideo, mergeChannelThumbnails, normalizeCategory, normalizePageToken, normalizeQuery, normalizeVideoId, parseDuration } from "../api/youtube-client.js";
+import { addChannelThumbnails, formatCommentThread, formatVideo, mergeChannelThumbnails, normalizeCategory, normalizePageToken, normalizeQuery, normalizeVideoId, parseDuration } from "../api/youtube-client.js";
 
 test("normalizes public API query parameters", () => {
   assert.equal(normalizeCategory("10"), "10");
@@ -36,6 +36,22 @@ test("adds channel thumbnails to formatted videos", () => {
     [{ id: "channel-1", snippet: { thumbnails: { high: { url: "https://yt3.ggpht.com/channel" } } } }]
   );
   assert.equal(video.channelThumbnail, "https://yt3.ggpht.com/channel");
+});
+
+test("addChannelThumbnails reuses cached channels and only fetches missing ones", async t => {
+  process.env.YOUTUBE_API_KEY = "test-only";
+  const calls = [];
+  const uniqueChannel = `UC-cache-${Date.now()}`;
+  t.mock.method(globalThis, "fetch", async url => {
+    calls.push(url);
+    return { ok: true, json: async () => ({ items: [{ id: uniqueChannel, snippet: { thumbnails: { high: { url: "https://yt3.ggpht.com/cached" } } } }] }) };
+  });
+  const first = await addChannelThumbnails([{ id: "dQw4w9WgXcQ", channelId: uniqueChannel }]);
+  assert.equal(first[0].channelThumbnail, "https://yt3.ggpht.com/cached");
+  assert.equal(calls.length, 1);
+  const second = await addChannelThumbnails([{ id: "abc123def45", channelId: uniqueChannel }]);
+  assert.equal(second[0].channelThumbnail, "https://yt3.ggpht.com/cached");
+  assert.equal(calls.length, 1, "cached channel must not call the API again");
 });
 
 test("drops malformed video records", () => {

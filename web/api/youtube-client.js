@@ -90,15 +90,41 @@ export function formatCommentThread(thread) {
   };
 }
 
-export async function addChannelThumbnails(videos) {
+// Channel avatars change rarely, so warm serverless instances reuse them for
+// six hours instead of spending one channels.list unit on every response.
+const channelThumbnailCache = new Map();
+const CHANNEL_THUMBNAIL_TTL = 6 * 60 * 60 * 1000;
+
+export async function addChannelThumbnails(videos, now = Date.now()) {
   const ids = [...new Set((videos || []).map((video) => video.channelId).filter(Boolean))].slice(0, 50);
   if (ids.length === 0) return videos;
-  try {
-    const data = await youtubeRequest("channels", { part: "snippet", id: ids.join(","), maxResults: 50 });
-    return mergeChannelThumbnails(videos, data.items || []);
-  } catch {
-    return videos;
+  const missing = ids.filter((id) => {
+    const cached = channelThumbnailCache.get(id);
+    return !cached || now - cached.at > CHANNEL_THUMBNAIL_TTL;
+  });
+  if (missing.length) {
+    try {
+      const data = await youtubeRequest("channels", { part: "snippet", id: missing.join(","), maxResults: 50 });
+      for (const channel of data.items || []) {
+        const source = channel?.snippet?.thumbnails || {};
+        channelThumbnailCache.set(String(channel?.id || ""), {
+          at: now,
+          url: String(source.high?.url || source.medium?.url || source.default?.url || "")
+        });
+      }
+    } catch {
+      // Videos remain usable without avatars when the lookup fails.
+    }
+    if (channelThumbnailCache.size > 500) {
+      for (const [id, entry] of channelThumbnailCache) {
+        if (now - entry.at > CHANNEL_THUMBNAIL_TTL) channelThumbnailCache.delete(id);
+      }
+    }
   }
+  return (videos || []).map((video) => ({
+    ...video,
+    channelThumbnail: channelThumbnailCache.get(video.channelId)?.url || video.channelThumbnail || ""
+  }));
 }
 
 export async function youtubeRequest(resource, parameters) {
