@@ -169,7 +169,19 @@ export async function youtubeRequest(resource, parameters) {
   }
 }
 
+// Lets endpoints that already fetched a channel warm the avatar cache for free.
+export function seedChannelThumbnail(channelId, thumbnails, now = Date.now()) {
+  const id = String(channelId || "");
+  if (!id || !thumbnails) return;
+  const source = thumbnails || {};
+  const url = String(source.high?.url || source.medium?.url || source.default?.url || "");
+  if (url) channelThumbnailCache.set(id, { at: now, url });
+}
+
 export function sendError(response, error) {
   const status = Number(error?.statusCode) || 500;
-  return response.status(status).json({ error: String(error?.message || "เกิดข้อผิดพลาดชั่วคราว") });
+  return response.status(status).json({
+    error: String(error?.message || "เกิดข้อผิดพลาดชั่วคราว"),
+    ...(error?.reason ? { reason: error.reason } : {})
+  });
 }

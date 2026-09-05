@@ -21,7 +21,9 @@ const MAX_SUBSCRIPTION_CHANNELS = 60;
 const MAX_PERSONALIZED_VIDEOS = 1000;
 const UPLOADS_PER_CHANNEL = 5;
 const MAX_LIKED_PAGES = 8;
-const PERSONALIZATION_REFRESH_MS = 6 * 60 * 60 * 1000;
+const MAX_SEARCH_PAGES = 2;
+const QUOTA_COOLDOWN_MS = 30 * 60 * 1000;
+const PERSONALIZATION_REFRESH_MS = 12 * 60 * 60 * 1000;
 const PERSONALIZATION_WORKERS = 6;
 const MAX_SEARCH_QUERY_LENGTH = 100;
 const ACCOUNT_VIEWS = ["subscriptions", "liked", "playlists", "playlist"];
@@ -101,6 +103,7 @@ const elements = {
   relatedList: document.getElementById("related-list"),
   relatedStatus: document.getElementById("related-status"),
   loadMoreRelated: document.getElementById("load-more-related"),
+  relatedSection: document.getElementById("related-section"),
   privacyButton: document.getElementById("privacy-button"),
   privacyDialog: document.getElementById("privacy-dialog"),
   closePrivacy: document.getElementById("close-privacy"),
@@ -143,6 +146,20 @@ let relatedNextPageToken = "";
 let relatedVideoId = "";
 let relatedController = null;
 let relatedSerial = 0;
+let searchPagesLoaded = 1;
+let quotaBlockedUntil = 0;
+let relatedObserver = null;
+
+// Skip optional follow-up calls while the daily quota is spent; cached and
+// saved data keeps rendering until a manual refresh retries.
+function quotaExceeded(error) {
+  if (error?.reason === "quotaExceeded" || error?.reason === "dailyLimitExceeded" || /โควตา/.test(String(error?.message || ""))) {
+    quotaBlockedUntil = Date.now() + QUOTA_COOLDOWN_MS;
+  }
+}
+function quotaActive() {
+  return Date.now() < quotaBlockedUntil;
+}
 let googleClientId = "";
 let youtubeAccessToken = "";
 let youtubeTokenExpiresAt = 0;
@@ -478,7 +495,7 @@ function render(items = videos) {
   elements.empty.hidden = visibleItems.length > 0;
   configureEmptyState();
   setStatus(`${visibleItems.length} วิดีโอ`);
-  elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
+  elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken && (activeView !== "search" || searchPagesLoaded < MAX_SEARCH_PAGES) && !quotaActive());
 }
 
 function videoRequestUrl(pageToken = "") {
@@ -517,10 +534,15 @@ async function fetchVideos(url, { append = false } = {}) {
     if (!data) {
       const response = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
       data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "โหลดรายการไม่สำเร็จ");
+      if (!response.ok) {
+        const error = new Error(data.error || "โหลดรายการไม่สำเร็จ");
+        error.reason = data.reason || "";
+        throw error;
+      }
     }
     if (requestId !== requestSerial || requestView !== activeView) return;
     if (!cached?.fresh) resultCache.put(cacheOwner, cacheKey, data);
+    if (append && activeView === "search") searchPagesLoaded += 1;
     const incoming = Array.isArray(data.items) ? data.items : [];
     const filteredIncoming = incoming.filter(matchesActiveCategory).filter((video) => activeCategory !== "10" || isStrictMusicVideo(video));
     const initialItems = !append && activeView === "home" && !activeCategory ? personalizedHomeItems(filteredIncoming) : filteredIncoming;
@@ -533,6 +555,7 @@ async function fetchVideos(url, { append = false } = {}) {
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestId !== requestSerial || requestView !== activeView) return;
+    quotaExceeded(error);
     if (!append) {
       videos = cached?.data.items || [];
       render();
@@ -545,12 +568,16 @@ async function fetchVideos(url, { append = false } = {}) {
     if (requestId === requestSerial) {
       loadingMore = false;
       elements.feedLoader.hidden = true;
-      elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken);
+      elements.feedSentinel.hidden = !(["home", "search"].includes(activeView) && nextPageToken && (activeView !== "search" || searchPagesLoaded < MAX_SEARCH_PAGES) && !quotaActive());
     }
   }
 }
 
 function loadNextVideoPage() {
+  if (activeView === "search" && (searchPagesLoaded >= MAX_SEARCH_PAGES || quotaActive())) {
+    elements.feedSentinel.hidden = true;
+    return;
+  }
   if (!nextPageToken || loadingMore || !["home", "search"].includes(activeView)) return;
   fetchVideos(videoRequestUrl(nextPageToken), { append: true });
 }
@@ -1001,6 +1028,7 @@ async function loadComments(videoId, { append = false } = {}) {
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestId !== commentSerial || commentsVideoId !== videoId) return;
+    quotaExceeded(error);
     elements.commentsStatus.textContent = error.message || "โหลดความคิดเห็นไม่สำเร็จ กรุณาลองใหม่";
     elements.loadMoreComments.disabled = false;
   } finally {
@@ -1040,6 +1068,17 @@ function createRelatedCard(video) {
   return card;
 }
 
+// Cheap recommendations come first: same-category videos already in the feed
+// cost nothing. The uploads playlist call happens only when more are needed.
+function fillRelatedFromFeed(video) {
+  if (!video || !["home", "search"].includes(activeView)) return;
+  const extras = videos.filter((item) => item.id !== video.id && (item.categoryId || "") === (video.categoryId || ""));
+  for (const item of extras) {
+    if (!relatedVideos.some((existing) => existing.id === item.id)) relatedVideos.push(item);
+  }
+  renderRelated();
+}
+
 function renderRelated() {
   elements.relatedList.replaceChildren(...relatedVideos.map(createRelatedCard));
   elements.loadMoreRelated.hidden = !relatedNextPageToken;
@@ -1048,22 +1087,36 @@ function renderRelated() {
 
 async function loadRelated(videoId, { append = false } = {}) {
   if (!videoId || (append && !relatedNextPageToken)) return;
+  if (!append && currentVideo?.id !== videoId) return;
   if (!append) {
     relatedController?.abort();
     relatedVideos = [];
     relatedNextPageToken = "";
     relatedVideoId = videoId;
     renderRelated();
+    // Same-category items already in the feed cost no quota at all.
+    fillRelatedFromFeed(currentVideo);
+  }
+  if (quotaActive()) {
+    elements.relatedStatus.textContent = relatedVideos.length
+      ? ""
+      : "โควต้า YouTube API หมดชั่วคราว จะกลับมาแนะนำอัตโนมัติเมื่อรีเซ็ต";
+    return;
+  }
+  const channelId = String(currentVideo?.channelId || "");
+  if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId)) {
+    elements.relatedStatus.textContent = relatedVideos.length ? "" : "ยังไม่มีวิดีโอแนะนำสำหรับวิดีโอนี้";
+    return;
   }
   const controller = new AbortController();
   const requestId = ++relatedSerial;
   relatedController = controller;
   elements.relatedStatus.textContent = append ? "กำลังโหลดวิดีโอแนะนำเพิ่มเติม…" : "กำลังค้นหาวิดีโอแนะนำ…";
   elements.loadMoreRelated.disabled = true;
-  const params = new URLSearchParams({ id: videoId });
+  const params = new URLSearchParams({ channelId, exclude: videoId });
   if (append) params.set("pageToken", relatedNextPageToken);
-  // Session cache keeps re-opening the same video from spending search quota again.
-  const cacheKey = `related:${videoId}:${append ? relatedNextPageToken : "first"}`;
+  // Session cache keeps re-opening the same video from spending quota again.
+  const cacheKey = `related:${channelId}:${append ? relatedNextPageToken : "first"}`;
   const cached = resultCache.get(cacheOwner, cacheKey);
   try {
     let data = cached?.fresh ? cached.data : null;
@@ -1073,21 +1126,28 @@ async function loadRelated(videoId, { append = false } = {}) {
         signal: controller.signal
       });
       data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "โหลดวิดีโอแนะนำไม่สำเร็จ");
+      if (!response.ok) {
+        const error = new Error(data.error || "โหลดวิดีโอแนะนำไม่สำเร็จ");
+        error.reason = data.reason || "";
+        throw error;
+      }
       resultCache.put(cacheOwner, cacheKey, data);
     }
     if (requestId !== relatedSerial || relatedVideoId !== videoId || currentVideo?.id !== videoId) return;
     const incoming = Array.isArray(data.items) ? data.items : [];
     relatedVideos = append
       ? [...new Map([...relatedVideos, ...incoming].map((video) => [video.id, video])).values()]
-      : incoming;
+      : [...new Map([...relatedVideos, ...incoming].map((video) => [video.id, video])).values()];
     relatedNextPageToken = String(data.nextPageToken || "");
     renderRelated();
     elements.relatedStatus.textContent = relatedVideos.length ? "" : "ยังไม่มีวิดีโอแนะนำสำหรับวิดีโอนี้";
   } catch (error) {
     if (error.name === "AbortError") return;
     if (requestId !== relatedSerial || relatedVideoId !== videoId) return;
-    elements.relatedStatus.textContent = error.message || "โหลดวิดีโอแนะนำไม่สำเร็จ กรุณาลองใหม่";
+    quotaExceeded(error);
+    elements.relatedStatus.textContent = relatedVideos.length
+      ? ""
+      : error.message || "โหลดวิดีโอแนะนำไม่สำเร็จ กรุณาลองใหม่";
     elements.loadMoreRelated.disabled = false;
   } finally {
     if (relatedController === controller) relatedController = null;
@@ -1135,7 +1195,26 @@ function openVideo(video) {
   elements.watchDialog.showModal();
   elements.watchDialog.scrollTop = 0;
   loadComments(video.id);
-  loadRelated(video.id);
+  // Lazy: only spend quota on recommendations once the section is visible.
+  if (relatedObserver) relatedObserver.disconnect();
+  relatedVideos = [];
+  relatedNextPageToken = "";
+  relatedVideoId = video.id;
+  renderRelated();
+  const startRelated = () => { loadRelated(video.id); };
+  if (relatedVideos.length === 0 && mobileViewport.matches && window.IntersectionObserver) {
+    elements.relatedStatus.textContent = "";
+    relatedObserver = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        relatedObserver.disconnect();
+        relatedObserver = null;
+        startRelated();
+      }
+    }, { root: elements.watchDialog, rootMargin: "200px" });
+    relatedObserver.observe(elements.relatedSection);
+  } else {
+    startRelated();
+  }
 }
 
 function minimizeVideo() {
@@ -1171,6 +1250,7 @@ function closeVideo() {
   relatedSerial += 1;
   relatedController?.abort();
   relatedController = null;
+  if (relatedObserver) { relatedObserver.disconnect(); relatedObserver = null; }
   relatedVideoId = "";
   relatedNextPageToken = "";
   relatedVideos = [];
@@ -1359,6 +1439,7 @@ function toggleAccountMenu(force) {
 }
 
 function performSearch(value = elements.searchInput.value, { syncUrl = true } = {}) {
+  searchPagesLoaded = 1;
   document.getElementById("music-library-shortcuts").hidden = true;
   libraryBusy = false;
   loadLibraryPage.hidden = true;
@@ -1691,7 +1772,10 @@ function scheduleAutomaticPersonalizationSync() {
   const wait = personalizationNeedsRefresh() ? 1200 : PERSONALIZATION_REFRESH_MS;
   personalizationTimer = window.setTimeout(async () => {
     personalizationTimer = null;
-    await connectYouTubePersonalization({ automatic: true });
+    // Only refresh while the viewer is actually on the home feed.
+    if (activeView === "home" && hasYouTubeConnection() && validYouTubeToken() && !quotaActive()) {
+      await connectYouTubePersonalization({ automatic: true });
+    }
     scheduleAutomaticPersonalizationSync();
   }, wait);
 }

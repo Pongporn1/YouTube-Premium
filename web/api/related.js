@@ -1,62 +1,50 @@
 import { requireSession } from "./auth/session-core.js";
-import { addChannelThumbnails, formatVideo, normalizePageToken, normalizeVideoId, sendError, youtubeRequest } from "./youtube-client.js";
+import { addChannelThumbnails, formatVideo, normalizePageToken, normalizeVideoId, seedChannelThumbnail, sendError, youtubeRequest } from "./youtube-client.js";
 
-// YouTube retired relatedToVideoId, so "Up next" is derived from the source
-// video title with a scoped search. The search quota cost applies only when a
-// signed-in viewer opens a video, never on page load.
-function relatedQuery(title) {
-  return String(title || "")
-    .replace(/[\[\](){}"'|#【】「」]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .split(" ")
-    .slice(0, 10)
-    .join(" ")
-    .slice(0, 60)
-    .trim();
-}
+const CHANNEL_ID_PATTERN = /^UC[A-Za-z0-9_-]{22}$/;
 
+// YouTube retired relatedToVideoId and search.list costs 100 quota units, so
+// "Up next" reuses the same channel uploads playlist: three cheap calls
+// (channels, playlistItems, videos) instead of one expensive search. The client
+// mixes in same-category items it already has from the feed.
 export default async function handler(request, response) {
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
   if (!requireSession(request, response)) return;
-  const id = normalizeVideoId(request.query.id);
-  if (!id) return response.status(400).json({ error: "รหัสวิดีโอไม่ถูกต้อง" });
+  const channelId = String(request.query.channelId || "").trim();
+  const exclude = normalizeVideoId(request.query.exclude);
+  if (!CHANNEL_ID_PATTERN.test(channelId)) return response.status(400).json({ error: "Invalid channel ID" });
   try {
-    const source = await youtubeRequest("videos", { part: "snippet", id, maxResults: 1 });
-    const snippet = source.items?.[0]?.snippet;
-    if (!snippet) return response.status(404).json({ error: "ไม่พบวิดีโอนี้บน YouTube" });
-    const query = relatedQuery(snippet.title);
-    if (!query) {
+    const channels = await youtubeRequest("channels", { part: "contentDetails,snippet", id: channelId });
+    const channel = channels.items?.[0];
+    const uploads = String(channel?.contentDetails?.relatedPlaylists?.uploads || "");
+    if (!channel || !uploads) {
       response.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
       return response.status(200).json({ items: [], nextPageToken: "" });
     }
-    const search = await youtubeRequest("search", {
-      part: "snippet",
-      type: "video",
-      q: query,
-      maxResults: 12,
-      regionCode: "TH",
-      relevanceLanguage: "th",
-      safeSearch: "moderate",
+    seedChannelThumbnail(channel.id, channel.snippet?.thumbnails);
+    const page = await youtubeRequest("playlistItems", {
+      part: "contentDetails",
+      playlistId: uploads,
+      maxResults: 15,
       pageToken: normalizePageToken(request.query.pageToken)
     });
-    const ids = [...new Set((search.items || []).map((item) => item?.id?.videoId).filter(Boolean))]
-      .filter((videoId) => videoId !== id);
+    const ids = [...new Set((page.items || []).map((item) => item?.contentDetails?.videoId).filter(Boolean))]
+      .filter((videoId) => videoId !== exclude);
     const details = ids.length
       ? await youtubeRequest("videos", { part: "snippet,contentDetails,statistics", id: ids.join(",") })
       : { items: [] };
     const byId = new Map((details.items || []).map((item) => [item.id, item]));
     const ordered = ids.map((videoId) => byId.get(videoId)).filter(Boolean);
     const items = await addChannelThumbnails(ordered.map(formatVideo).filter(Boolean));
-    // Recommendations are public and shared across viewers: CDN caching keeps
-    // repeat views of the same video from spending 100 search units again.
+    // Recommendations are public and identical for every viewer: brief CDN
+    // caching keeps repeat views from spending the same cheap calls again.
     response.setHeader("Cache-Control", "public, s-maxage=1800, stale-while-revalidate=3600");
     return response.status(200).json({
       items,
-      nextPageToken: String(search.nextPageToken || "")
+      nextPageToken: String(page.nextPageToken || "")
     });
   } catch (error) {
     return sendError(response, error);
