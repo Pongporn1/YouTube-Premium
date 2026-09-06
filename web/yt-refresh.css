@@ -87,7 +87,7 @@ body {
 
 /* ── Feed card typography: YouTube mobile metrics ─────────────────────── */
 .card-body {
-  grid-template-columns: 36px minmax(0, 1fr) 24px;
+  grid-template-columns: 36px minmax(0, 1fr) 32px;
   gap: 10px;
   padding-top: 10px;
 }
@@ -339,6 +339,9 @@ body.native-player .player-gesture { display: none; }
 
 /* ── Mobile-specific de-clutter (match app breakpoint 680px) ───────────── */
 @media (max-width: 680px) {
+  /* Lock the page to the screen: no horizontal pan, ever. */
+  html, body { overflow-x: clip; }
+
   .data-source-note { display: none; }
 
   .music-library-shortcuts {
