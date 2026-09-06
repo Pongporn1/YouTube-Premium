@@ -1,4 +1,78 @@
-# MyTube
+<p align="center">
+  <img src="docs/icon.png" width="150" alt="MyTube Music icon">
+</p>
+
+<h1 align="center">MyTube</h1>
+
+<p align="center">
+  <strong>The real YouTube, tuned for Windows — with ads gone and music that never stops.</strong><br>
+  A YouTube-focused desktop browser (WPF + WebView2) plus an ultra-light gaming music companion,
+  backed by a mobile-first web portal. No accounts, no telemetry, no nonsense.
+</p>
+
+<p align="center">
+  <a href="docs/INSTALL.md"><img alt="Install guide" src="https://img.shields.io/badge/install-guide-2ea44f?style=flat-square"></a>
+  <a href="docs/INSTALL-TH.md"><img alt="Thai guide" src="https://img.shields.io/badge/คู่มือ-ภาษาไทย-2ea44f?style=flat-square"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-blue?style=flat-square">
+  <img alt=".NET" src="https://img.shields.io/badge/.NET-8%20WPF-512BD4?style=flat-square">
+  <img alt="Engine" src="https://img.shields.io/badge/render-WebView2%20Chromium-0078D7?style=flat-square">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
+</p>
+
+---
+
+## Two apps, one repository
+
+| | **MyTube** (`MyTube.exe`) | **MyTubeMusic** (`MyTubeMusic.exe`) |
+|---|---|---|
+| What it is | The real youtube.com inside a hardened WPF shell | An ultra-light music companion for gaming sessions |
+| Ad blocking | ✔ full stack | ✔ full stack |
+| Always-on-top mini player | ✔ draggable | ✔ the whole window floats |
+| Separate Music window | ✔ | — |
+| Windows media keys (SMTC) | ✔ | ✔ |
+| GPU usage | on (video decode) | **off** — the game keeps the GPU |
+| Process priority | normal | **below normal** — the game wins CPU |
+
+## Highlights
+
+- **Ad blocking, three layers** — cosmetic CSS hiding, in-player suppression (mute + instant skip + pruning the ad schedule before the player reads it), and network-level ad/tracker blocking. Zero configuration.
+- **Always-on-top mini player** — `Ctrl+Shift+M` shrinks the whole window into a draggable, topmost rectangle; playback never stops.
+- **MyTube Music window** — a separate WebView2 that keeps playing while the main window navigates anywhere, minimizes, or shrinks.
+- **Windows media keys (SMTC)** — hardware keys, lock screen, and volume flyout control whichever source is actually playing, with real titles and thumbnails.
+- **Private by design** — YouTube-only navigation, YouTube-only subdomains for Music, no telemetry, no database, per-app local profiles.
+
+## Built with
+
+| Layer | Technology |
+|---|---|
+| Shell & UI | C# / **.NET 8 — WPF** |
+| Rendering | **Microsoft WebView2** (Chromium, Evergreen runtime) |
+| Media keys | Windows **System Media Transport Controls** (WinRT) |
+| Player integration | YouTube player JS API (`enablejsapi`) + ad-schedule pruning |
+| Filtering | Local rule engine (`default-filters.txt`) compiled into allow/block indexes |
+| Web portal (mobile) | Vercel serverless functions · YouTube Data API v3 · Google Identity |
+| Tests | MSTest (desktop, 33 tests) · Node test runner (web, 49 tests) |
+| Installer | Inno Setup 6 |
+
+## Resource footprint (measured on Windows 11)
+
+| Scenario | RAM (private) | CPU |
+|---|---|---|
+| Main window browsing | ~400 MB | ~0% idle |
+| Main + Music window playing | ~760 MB | ~24% of one core |
+| Minimized (auto-suspend + working-set trim) | ~300 MB | **0%** |
+| MyTubeMusic.exe while gaming | ~250–350 MB | low-priority few % — the game wins |
+
+## Quick start
+
+Full walkthrough: **[docs/INSTALL.md](docs/INSTALL.md)** (English) · [docs/INSTALL-TH.md](docs/INSTALL-TH.md) (ภาษาไทย)
+
+```powershell
+dotnet publish src/MyTube/MyTube.csproj -c Release -r win-x64 --self-contained false -o artifacts/publish/win-x64
+dotnet publish src/MyTubeMusic/MyTubeMusic.csproj -c Release -r win-x64 --self-contained false -o artifacts/publish/music-x64
+```
+
+---
 
 MyTube is a minimal personal YouTube-focused browser for Windows 10/11. It opens the real `youtube.com` website in Microsoft WebView2; it is not a YouTube clone and has no MyTube account, cloud database, analytics, or telemetry.
 
@@ -10,9 +84,8 @@ The MVP includes:
 
 - one persistent WebView2 profile at `%LOCALAPPDATA%\MyTube\UserData`
 - the real YouTube and Google sign-in pages
-- Back, Forward, Reload, Home, Settings, application fullscreen, and keyboard shortcuts
+- Back, Forward, Reload, Home, YouTube Music, Settings, application fullscreen, mini player, and keyboard shortcuts
 - YouTube-only top-level navigation with an explicit external-browser prompt
-- JSON settings at `%APPDATA%\MyTube\settings.json`
 - YouTube-only cosmetic filtering, player-ad suppression, and Focus Mode
 - a precompiled local network-rule engine with allowlist precedence and fail-open media handling
 - download confirmation, offline retry UI, crash handling, and local security-conscious logging
@@ -32,7 +105,7 @@ WebView2 Evergreen updates its browser engine through Microsoft. The framework-d
 From the repository root:
 
 ```powershell
-dotnet restore
+dotnet restore MyTube.sln
 dotnet build MyTube.sln
 dotnet test MyTube.sln
 dotnet run --project src/MyTube/MyTube.csproj
@@ -81,7 +154,7 @@ Logs are written to `%LOCALAPPDATA%\MyTube\Logs\mytube.log`. They contain lifecy
 
 ## Google login limitation
 
-Google controls whether an embedded browser may sign in. MyTube uses the real Google page, the default WebView2 identity, and its own persistent profile. If Google displays “This browser or app may not be secure” or otherwise blocks embedded sign-in, MyTube will not spoof headers, user-agent strings, credentials, or cookies to bypass that policy.
+Google controls whether an embedded browser may sign in. MyTube uses the real Google page, the default WebView2 identity, and its own persistent profile. If Google displays "This browser or app may not be secure" or otherwise blocks embedded sign-in, MyTube will not spoof headers, user-agent strings, credentials, or cookies to bypass that policy.
 
 Use the browser extension in [`fallback-extension`](fallback-extension) with a normal Chrome, Brave, or Edge profile instead. Login then belongs to that browser.
 
@@ -104,6 +177,10 @@ Basic `||domain^` and `@@||domain^` rules are also accepted. This is not a compl
 
 Cosmetic selectors are centralized in `YouTubeSelectors.cs`, and injection is refused on non-YouTube pages, including `accounts.google.com`. MyTube installs its filter at document creation time and always suppresses YouTube player ads by hiding the ad frame, muting and advancing only while the player reports an active ad, and activating the skip control when available. The document-creation script also removes ad scheduling data (`adPlacements`, `adSlots`, `playerAds`) from YouTube player responses before the player reads them, so most ads never start at all; the in-player suppression remains as a backstop. The promoted-content setting separately controls sponsored cards in the feed. Player suppression is deliberately scoped to YouTube's ad-state classes so normal video playback is restored immediately afterward. YouTube can change its player at any time, so live behavior must be rechecked after layout updates.
 
+## MyTubeMusic (gaming companion)
+
+`src/MyTubeMusic` builds `MyTubeMusic.exe`, a separate always-on-top music companion for gaming sessions. It plays music.youtube.com with MyTube's full ad/tracker filtering but is tuned to stay out of a game's way: GPU acceleration off, below-normal process priority, a 128 MB disk cache, a single renderer, and built-in Windows media-key (SMTC) support. It uses its own profile folder (`%LOCALAPPDATA%\MyTubeMusic`) — sign in to Google once inside the app for liked videos and playlists. Expect roughly 250–350 MB of RAM and near-zero GPU; CPU stays below-normal priority so an FPS game always wins under load. Publish with `dotnet publish src/MyTubeMusic -c Release -r win-x64 --self-contained false -o artifacts/publish/music-x64`.
+
 ## Fallback extension
 
 See [`fallback-extension/README.md`](fallback-extension/README.md). The extension requests only YouTube page access plus local storage/declarative filtering permissions; it never requests `<all_urls>` and never runs on Google Accounts pages.
@@ -111,10 +188,6 @@ See [`fallback-extension/README.md`](fallback-extension/README.md). The extensio
 ## Installer
 
 `installer/MyTube.iss` is an Inno Setup 6 script. Publish first, open the script in Inno Setup, and compile it to produce `MyTubeSetup.exe`. The installer creates a Start Menu shortcut, offers an optional Desktop shortcut, supports uninstall, and does not change the Windows default browser.
-
-## MyTubeMusic (gaming companion)
-
-`src/MyTubeMusic` builds `MyTubeMusic.exe`, a separate always-on-top music companion for gaming sessions. It plays music.youtube.com with MyTube's full ad/tracker filtering but is tuned to stay out of a game's way: GPU acceleration off, below-normal process priority, a 128 MB disk cache, a single renderer, and built-in Windows media-key (SMTC) support. It uses its own profile folder (`%LOCALAPPDATA%\MyTubeMusic`) — sign in to Google once inside the app for liked videos and playlists. Expect roughly 250–350 MB of RAM and near-zero GPU; CPU stays below-normal priority so an FPS game always wins under load. Publish with `dotnet publish src/MyTubeMusic -c Release -r win-x64 --self-contained false -o artifacts/publish/music-x64`.
 
 ## Troubleshooting
 
