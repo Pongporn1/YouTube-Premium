@@ -32,7 +32,9 @@ public partial class MainWindow : Window
       title: titleEl ? titleEl.textContent : '',
       author: bylineEl ? bylineEl.textContent : '',
       videoId,
-      thumb: imageEl ? imageEl.src : ''
+      thumb: imageEl ? imageEl.src : '',
+      volume: video ? video.volume : 1,
+      muted: video ? !!video.muted : false
     });
   } catch (error) {
     return JSON.stringify({ playing: false, title: '', author: '', videoId: '', thumb: '' });
@@ -61,7 +63,10 @@ public partial class MainWindow : Window
     private readonly BrowserService _browserService;
     private readonly MediaTransportService _mediaTransport = new();
     private readonly DispatcherTimer _mediaPollTimer;
+    private readonly string _volumeFilePath;
     private bool _initialized;
+    private bool _muted;
+    private bool _syncingVolume;
 
     public MainWindow()
     {
@@ -80,6 +85,7 @@ public partial class MainWindow : Window
         _mediaTransport.ButtonPressed += OnMediaTransportButtonPressed;
         _mediaPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _mediaPollTimer.Tick += OnMediaPollTick;
+        _volumeFilePath = System.IO.Path.Combine(_profileService.LocalDataDirectory, "ui-volume.txt");
 
         try
         {
@@ -120,6 +126,7 @@ public partial class MainWindow : Window
         try
         {
             await _browserService.InitializeAsync(Player, BrowserService.MusicUri);
+            ApplySavedVolume();
         }
         catch (Exception exception)
         {
@@ -132,6 +139,87 @@ public partial class MainWindow : Window
         }
     }
 
+    // The music page resets its volume on reload, so the app keeps the last
+    // value itself and re-applies it after every launch.
+    private void ApplySavedVolume()
+    {
+        try
+        {
+            if (!System.IO.File.Exists(_volumeFilePath))
+            {
+                return;
+            }
+
+            var parts = System.IO.File.ReadAllText(_volumeFilePath).Split('|');
+            if (int.TryParse(parts[0], out var volume))
+            {
+                _syncingVolume = true;
+                VolumeSlider.Value = Math.Clamp(volume, 0, 100);
+                _syncingVolume = false;
+            }
+
+            if (parts.Length > 1)
+            {
+                _muted = parts[1] == "1";
+            }
+
+            ApplyVolume();
+        }
+        catch (Exception)
+        {
+            // A missing or corrupt volume file just falls back to the page default.
+        }
+    }
+
+    private void ApplyVolume()
+    {
+        _ = _browserService.ExecuteScriptAsyncSafe(VolumeScript(VolumeSlider.Value / 100.0, _muted));
+    }
+
+    private void PersistVolume()
+    {
+        try
+        {
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(_volumeFilePath)!);
+            System.IO.File.WriteAllText(_volumeFilePath, ((int)VolumeSlider.Value).ToString() + "|" + (_muted ? "1" : "0"));
+        }
+        catch (Exception)
+        {
+            // Volume persistence is cosmetic; failing to save changes nothing.
+        }
+    }
+
+    private void OnMuteClick(object sender, RoutedEventArgs e)
+    {
+        _muted = !_muted;
+        MuteButton.Content = _muted ? "\U0001F507" : "\U0001F50A";
+        ApplyVolume();
+        PersistVolume();
+    }
+
+    private void OnVolumeChanged(object sender, System.Windows.RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (!_initialized || _syncingVolume)
+        {
+            return;
+        }
+
+        if (_muted)
+        {
+            _muted = false;
+            MuteButton.Content = "\U0001F50A";
+        }
+
+        ApplyVolume();
+        PersistVolume();
+    }
+
+    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        MaximizeButton.Content = WindowState == WindowState.Maximized ? "\u2750" : "\u25A1";
+    }
+
     private async void OnMediaPollTick(object? sender, EventArgs e)
     {
         try
@@ -142,10 +230,24 @@ public partial class MainWindow : Window
                 return;
             }
 
-            var thumbnail = current.VideoId.Length == 11
-                ? $"https://i.ytimg.com/vi/{current.VideoId}/mqdefault.jpg"
-                : current.Thumbnail;
-            _mediaTransport.Update(current.Title, current.Artist, thumbnail, current.Playing);
+            var thumbnail = state.Value.VideoId.Length == 11
+                ? $"https://i.ytimg.com/vi/{state.Value.VideoId}/mqdefault.jpg"
+                : state.Value.Thumbnail;
+            _mediaTransport.Update(state.Value.Title, state.Value.Artist, thumbnail, state.Value.Playing);
+
+            // Mirror the page's real volume/mute state onto the title bar, but
+            // never fight the user while they are dragging the slider.
+            if (!VolumeSlider.IsMouseCaptureWithin)
+            {
+                _syncingVolume = true;
+                VolumeSlider.Value = Math.Clamp(current.Volume * 100.0, 0, 100);
+                _syncingVolume = false;
+            }
+            var muteGlyph = (current.Muted || _muted) ? "\U0001F507" : "\U0001F50A";
+            if (MuteButton.Content.ToString() != muteGlyph)
+            {
+                MuteButton.Content = muteGlyph;
+            }
         }
         catch (Exception)
         {
@@ -181,7 +283,19 @@ public partial class MainWindow : Window
         }));
     }
 
-    private static (bool Playing, string Title, string Artist, string VideoId, string Thumbnail)? ParseMediaState(string? scriptResult)
+    private static string VolumeScript(double volume, bool muted) => $@"
+(() => {{
+  try {{
+    const v = Math.max(0, Math.min(1, {volume.ToString(System.Globalization.CultureInfo.InvariantCulture)}));
+    const m = {muted.ToString().ToLowerInvariant()};
+    document.querySelectorAll('video, audio').forEach(el => {{
+      el.volume = v;
+      el.muted = m;
+    }});
+  }} catch (error) {{ }}
+}})()";
+
+    private static (bool Playing, string Title, string Artist, string VideoId, string Thumbnail, double Volume, bool Muted)? ParseMediaState(string? scriptResult)
     {
         if (string.IsNullOrWhiteSpace(scriptResult))
         {
@@ -203,7 +317,9 @@ public partial class MainWindow : Window
                 root.TryGetProperty("title", out var title) ? title.GetString() ?? "" : "",
                 root.TryGetProperty("author", out var author) ? author.GetString() ?? "" : "",
                 root.TryGetProperty("videoId", out var videoId) ? videoId.GetString() ?? "" : "",
-                root.TryGetProperty("thumb", out var thumbnail) ? thumbnail.GetString() ?? "" : ""
+                root.TryGetProperty("thumb", out var thumbnail) ? thumbnail.GetString() ?? "" : "",
+                root.TryGetProperty("volume", out var volume) ? volume.GetDouble() : 1,
+                root.TryGetProperty("muted", out var muted) && muted.GetBoolean()
             );
         }
         catch (Exception)
