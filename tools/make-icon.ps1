@@ -40,30 +40,42 @@ function New-YouTubeBitmap([int]$size) {
     return $bmp
 }
 
-# YouTube-Music shape: red circle with a white play triangle, optically centered.
+# YouTube-Music shape: dark rounded tile with a GLOWING music note.
 function New-MusicBitmap([int]$size) {
     $bmp = New-Object System.Drawing.Bitmap($size, $size)
     $g = [System.Drawing.Graphics]::FromImage($bmp)
     $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
     $g.Clear([System.Drawing.Color]::Transparent)
 
-    $diameter = $size * 0.92
-    $x = ($size - $diameter) / 2.0
-    $y = ($size - $diameter) / 2.0
-    $g.FillEllipse([System.Drawing.Brushes]::Red, $x, $y, $diameter, $diameter)
+    $inset = [Math]::Max(1, [int]($size * 0.06))
+    $box = $size - (2 * $inset)
+    $radius = [Math]::Max(2, [int]($box * 0.22))
+    $path = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $path.AddArc($inset, $inset, 2 * $radius, 2 * $radius, 180, 90)
+    $path.AddArc($inset + $box - 2 * $radius, $inset, 2 * $radius, 2 * $radius, 270, 90)
+    $path.AddArc($inset + $box - 2 * $radius, $inset + $box - 2 * $radius, 2 * $radius, 2 * $radius, 0, 90)
+    $path.AddArc($inset, $inset + $box - 2 * $radius, 2 * $radius, 2 * $radius, 90, 90)
+    $path.CloseFigure()
+    $tile = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255, 23, 22, 30))
+    $g.FillPath($tile, $path)
 
-    $triW = $diameter * 0.32
-    $triH = $diameter * 0.36
-    $offset = $triW * 0.10   # small optical nudge only
-    $cx = $size / 2.0
-    $cy = $size / 2.0
-    $points = @(
-        (New-Object System.Drawing.PointF(($cx - $triW / 2 + $offset), ($cy - $triH / 2))),
-        (New-Object System.Drawing.PointF(($cx - $triW / 2 + $offset), ($cy + $triH / 2))),
-        (New-Object System.Drawing.PointF(($cx + $triW / 2 + $offset), $cy))
-    )
+    $glowRect = New-Object System.Drawing.RectangleF(
+        [float]($size * 0.10), [float]($size * 0.10), [float]($size * 0.80), [float]($size * 0.80))
+    $glowPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+    $glowPath.AddEllipse($glowRect)
+    $glow = New-Object System.Drawing.Drawing2D.PathGradientBrush($glowPath)
+    $glow.CenterColor = [System.Drawing.Color]::FromArgb(150, 255, 90, 60)
+    $glow.SurroundColors = @([System.Drawing.Color]::FromArgb(0, 255, 90, 60))
+    $g.FillPath($glow, $glowPath)
+
+    $noteFont = New-Object System.Drawing.Font('Segoe UI Symbol', [float]($size * 0.40), [System.Drawing.FontStyle]::Regular)
+    $noteFormat = New-Object System.Drawing.StringFormat
+    $noteFormat.Alignment = [System.Drawing.StringAlignment]::Center
+    $noteFormat.LineAlignment = [System.Drawing.StringAlignment]::Center
+    $noteRect = New-Object System.Drawing.RectangleF(0, [float](-$size * 0.02), [float]$size, [float]$size)
     $white = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::White)
-    $g.FillPolygon($white, $points)
+    $g.DrawString([string][char]0x266A, $noteFont, $white, $noteRect, $noteFormat)
+
     $g.Dispose()
     return $bmp
 }
@@ -224,7 +236,7 @@ $labelY = $tileY + $tile + 24
 $labelRect1 = New-Object System.Drawing.RectangleF(($tile1X - 60), $labelY, ($tile + 120), 60)
 $labelRect2 = New-Object System.Drawing.RectangleF(($tile2X - 60), $labelY, ($tile + 120), 60)
 $g.DrawString('MyTube', $labelFont, $labelBrush, $labelRect1, $plusFormat)
-$g.DrawString('MyTube Music', $labelFont, $labelBrush, $labelRect2, $plusFormat)
+$g.DrawString('YouTube Music', $labelFont, $labelBrush, $labelRect2, $plusFormat)
 
 $banner.Save("$root\docs\hero.png", [System.Drawing.Imaging.ImageFormat]::Png)
 $g.Dispose()
