@@ -3,7 +3,9 @@ namespace MyTube.Models;
 public enum BrowserFailureKind
 {
     Renderer,
+    RendererUnresponsive,
     Browser,
+    Auxiliary,
     Other,
 }
 

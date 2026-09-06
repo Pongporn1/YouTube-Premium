@@ -2,11 +2,13 @@ namespace MyTube.Models;
 
 public sealed class AppSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SettingsSchemaVersion { get; set; } = CurrentSchemaVersion;
 
     public bool OpenYouTubeOnStartup { get; set; } = true;
+
+    public bool SuspendWhenMinimized { get; set; } = true;
 
     public bool RememberSession { get; set; } = true;
 
@@ -53,6 +55,7 @@ public sealed class AppSettings
     {
         SettingsSchemaVersion = CurrentSchemaVersion;
         OpenYouTubeOnStartup = source.OpenYouTubeOnStartup;
+        SuspendWhenMinimized = source.SuspendWhenMinimized;
         RememberSession = source.RememberSession;
         YouTubeOnlyMode = source.YouTubeOnlyMode;
         HideShorts = source.HideShorts;

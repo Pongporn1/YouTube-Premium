@@ -2,18 +2,21 @@
 ! Custom syntax: ACTION MATCH_TYPE PATTERN [RESOURCE Type1,Type2]
 ! Allow rules are evaluated before block rules.
 
-ALLOW DOMAIN youtube.com
-ALLOW DOMAIN googlevideo.com
-ALLOW DOMAIN ytimg.com
-
 BLOCK DOMAIN tracker.example.com
 BLOCK URL_CONTAINS /tracking/pixel RESOURCE Image,XmlHttpRequest
 BLOCK WILDCARD https://*.example.net/telemetry/*
 
 ! Conservative generic tracker examples. Media and WebSocket requests always fail open at runtime.
-BLOCK DOMAIN google-analytics.com RESOURCE Script,Image,XmlHttpRequest
+BLOCK DOMAIN google-analytics.com RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping
 BLOCK DOMAIN googletagmanager.com RESOURCE Script
-BLOCK DOMAIN doubleclick.net RESOURCE Script,Image,XmlHttpRequest,Other
-BLOCK DOMAIN googlesyndication.com RESOURCE Script,Image,XmlHttpRequest,Other
-BLOCK DOMAIN googleadservices.com RESOURCE Script,Image,XmlHttpRequest,Other
-BLOCK DOMAIN googletagservices.com RESOURCE Script,Image,XmlHttpRequest,Other
+BLOCK DOMAIN doubleclick.net RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping,Other
+BLOCK DOMAIN googlesyndication.com RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping,Other
+BLOCK DOMAIN googleadservices.com RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping,Other
+BLOCK DOMAIN googletagservices.com RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping,Other
+
+! YouTube ad/tracking control requests. Media stays fail-open so normal videos keep playing.
+BLOCK URL_CONTAINS /api/stats/ads RESOURCE XmlHttpRequest,Fetch,Ping,Other
+BLOCK URL_CONTAINS /pagead/ RESOURCE Script,Image,XmlHttpRequest,Fetch,Ping,Other
+BLOCK URL_CONTAINS /ptracking RESOURCE XmlHttpRequest,Fetch,Ping,Other
+BLOCK URL_CONTAINS /get_midroll_info RESOURCE XmlHttpRequest,Fetch,Other
+BLOCK URL_CONTAINS /ad_break RESOURCE XmlHttpRequest,Fetch,Other

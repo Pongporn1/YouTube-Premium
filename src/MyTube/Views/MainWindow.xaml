@@ -9,6 +9,7 @@
         MinHeight="480"
         Background="{StaticResource AppBackgroundBrush}"
         WindowStartupLocation="CenterScreen"
+        SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded"
         PreviewKeyDown="OnPreviewKeyDown"
         Closing="OnClosing"
@@ -16,6 +17,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition x:Name="ToolbarRow" Height="46" />
+            <RowDefinition x:Name="MiniBarRow" Height="0" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
@@ -27,6 +29,7 @@
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
@@ -52,8 +55,13 @@
                         Command="{Binding HomeCommand}"
                         Style="{StaticResource ToolbarButtonStyle}"
                         ToolTip="YouTube Home" />
+                <Button Grid.Column="4"
+                        Content="&#x266B;"
+                        Click="OnMusicClick"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTip="YouTube Music" />
 
-                <TextBlock Grid.Column="4"
+                <TextBlock Grid.Column="5"
                            Text="MyTube"
                            Foreground="{StaticResource TextBrush}"
                            FontSize="15"
@@ -61,7 +69,12 @@
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center" />
 
-                <Button Grid.Column="5"
+                <Button x:Name="MiniPlayerButton" Grid.Column="6"
+                        Content="&#x29C9;"
+                        Click="OnMiniPlayerClick"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTip="Mini player always on top (Ctrl+Shift+M)" />
+                <Button Grid.Column="7"
                         Content="&#x2699;"
                         Command="{Binding OpenSettingsCommand}"
                         Style="{StaticResource ToolbarButtonStyle}"
@@ -69,7 +82,31 @@
             </Grid>
         </Border>
 
-        <Grid x:Name="BrowserHost" Grid.Row="1" Background="#0F1115">
+        <Border x:Name="MiniTitleBar" Grid.Row="1" Height="32" Background="#15181E" Visibility="Collapsed"
+                MouseLeftButtonDown="OnMiniPlayerDragStripMouseDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Margin="12,0"
+                           Text="MyTube mini — ลากแถบนี้เพื่อย้าย"
+                           Foreground="#B8BEC9"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1"
+                        Width="40"
+                        Height="26"
+                        Margin="0,0,4,0"
+                        Content="&#x2715;"
+                        Click="OnMiniPlayerClick"
+                        Style="{StaticResource ToolbarButtonStyle}"
+                        ToolTip="Exit mini player (Esc)" />
+            </Grid>
+        </Border>
+
+        <Grid x:Name="BrowserHost" Grid.Row="2" Background="#0F1115">
             <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0F1115" />
             <Border x:Name="LoadingPanel" Background="#111318">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">

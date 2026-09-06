@@ -22,3 +22,6 @@ settings.json
 # Local env diagnostics must never be committed.
 .env.debug
 .env.quota-check
+
+# Local dev logs
+vercel-dev.log

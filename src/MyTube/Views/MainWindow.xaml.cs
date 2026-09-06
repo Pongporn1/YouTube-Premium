@@ -1,7 +1,10 @@
 using System.Diagnostics;
 using System.ComponentModel;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Wpf;
 using MyTube.Models;
 using MyTube.Services;
@@ -18,11 +21,22 @@ public partial class MainWindow : Window
     private readonly LoggingService _logger;
     private bool _initialized;
     private bool _shutdownComplete;
+    private bool _shutdownInProgress;
+    private bool _processRecoveryInProgress;
     private bool _appFullscreen;
+    private bool _miniPlayerActive;
+    private Rect _preMiniBounds;
+    private WindowState _preMiniState;
+    private WindowStyle _preMiniStyle;
+    private ResizeMode _preMiniResize;
     private WindowStyle _previousWindowStyle;
     private ResizeMode _previousResizeMode;
     private WindowState _previousWindowState;
     private int _browserRecreateAttempts;
+    private MusicWindow? _musicWindow;
+    private readonly MediaTransportService _mediaTransport = new();
+    private DispatcherTimer? _mediaPollTimer;
+    private string _mediaTarget = "main";
 
     public MainWindow(
         MainViewModel viewModel,
@@ -42,6 +56,7 @@ public partial class MainWindow : Window
         _browserService.DownloadRequested += OnDownloadRequested;
         _browserService.BrowserProcessFailed += OnBrowserProcessFailed;
         _browserService.BrowserAvailabilityChanged += OnBrowserAvailabilityChanged;
+        StateChanged += OnStateChanged;
         _viewModel.SettingsRequested += OnSettingsRequested;
     }
 
@@ -76,7 +91,10 @@ public partial class MainWindow : Window
         _browserService.DownloadRequested -= OnDownloadRequested;
         _browserService.BrowserProcessFailed -= OnBrowserProcessFailed;
         _browserService.BrowserAvailabilityChanged -= OnBrowserAvailabilityChanged;
+        StateChanged -= OnStateChanged;
         _viewModel.SettingsRequested -= OnSettingsRequested;
+        _musicWindow?.Close();
+        _musicWindow = null;
         _browserService.Dispose();
         _logger.Info("Application closed.");
     }
@@ -89,6 +107,12 @@ public partial class MainWindow : Window
         }
 
         e.Cancel = true;
+        if (_shutdownInProgress)
+        {
+            return;
+        }
+
+        _shutdownInProgress = true;
         try
         {
             await _browserService.PrepareForShutdownAsync();
@@ -99,7 +123,7 @@ public partial class MainWindow : Window
         }
 
         _shutdownComplete = true;
-        Close();
+        _ = Dispatcher.BeginInvoke(new Action(Close));
     }
 
     private async void OnSettingsRequested(object? sender, EventArgs e)
@@ -136,6 +160,20 @@ public partial class MainWindow : Window
         if (key == Key.Escape && _appFullscreen)
         {
             ExitApplicationFullscreen();
+            e.Handled = true;
+            return;
+        }
+
+        if (key == Key.Escape && _miniPlayerActive)
+        {
+            ExitMiniPlayer();
+            e.Handled = true;
+            return;
+        }
+
+        if (key == Key.M && modifiers == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            ToggleMiniPlayer();
             e.Handled = true;
             return;
         }
@@ -220,6 +258,319 @@ public partial class MainWindow : Window
         Toolbar.Visibility = Visibility.Visible;
     }
 
+    private async void OnMusicClick(object sender, RoutedEventArgs e)
+    {
+        // The music window hosts its own WebView2, so its session survives any
+        // navigation in the main window — home, search, mini player, minimize.
+        if (_musicWindow is { IsLoaded: true })
+        {
+            _musicWindow.Activate();
+            return;
+        }
+
+        try
+        {
+            var environment = await _browserService.GetEnvironmentAsync();
+            // Deliberately unowned: owned windows hide (and may pause) when the
+            // main window is minimized, which defeats background listening.
+            _musicWindow = new MusicWindow(_settings, environment);
+            _musicWindow.Show();
+        }
+        catch (Exception exception)
+        {
+            _logger.Error("The music window could not be opened.", exception);
+        }
+    }
+
+    private void OnMiniPlayerClick(object sender, RoutedEventArgs e)
+    {
+        if (_appFullscreen)
+        {
+            return;
+        }
+
+        ToggleMiniPlayer();
+    }
+
+    // The WebView2 is an HwndHost that occludes and swallows input for any WPF
+    // element placed over it, so dragging is wired to the dedicated WPF title
+    // bar row instead of an overlay on top of the player.
+    private void OnMiniPlayerDragStripMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!_miniPlayerActive || e.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The button was released before DragMove started; nothing to move.
+        }
+    }
+
+    // Shrinks the whole window to a small always-on-top rectangle: the video
+    // keeps playing in the same WebView2 session while other apps stay visible.
+    private void ToggleMiniPlayer()
+    {
+        if (_miniPlayerActive)
+        {
+            ExitMiniPlayer();
+        }
+        else
+        {
+            EnterMiniPlayer();
+        }
+    }
+
+    private void EnterMiniPlayer()
+    {
+        if (_miniPlayerActive)
+        {
+            return;
+        }
+
+        _miniPlayerActive = true;
+        _preMiniBounds = new Rect(Left, Top, ActualWidth, ActualHeight);
+        _preMiniState = WindowState;
+        _preMiniStyle = WindowStyle;
+        _preMiniResize = ResizeMode;
+
+        if (WindowState != WindowState.Normal)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Width = 428;
+        Height = 294;
+        var workArea = SystemParameters.WorkArea;
+        Left = workArea.Right - ActualWidth - 12;
+        Top = workArea.Bottom - ActualHeight - 12;
+
+        WindowStyle = WindowStyle.None;
+        ResizeMode = ResizeMode.NoResize;
+        Topmost = true;
+        Toolbar.Visibility = Visibility.Collapsed;
+        ToolbarRow.Height = new GridLength(0);
+        // A real WPF row, not an overlay: the WebView2 is an HwndHost that
+        // occludes and swallows input for any WPF element placed over it.
+        MiniBarRow.Height = new GridLength(32);
+        MiniTitleBar.Visibility = Visibility.Visible;
+    }
+
+    private void ExitMiniPlayer()
+    {
+        if (!_miniPlayerActive)
+        {
+            return;
+        }
+
+        _miniPlayerActive = false;
+        Topmost = false;
+        WindowStyle = _preMiniStyle;
+        ResizeMode = _preMiniResize;
+        Toolbar.Visibility = Visibility.Visible;
+        ToolbarRow.Height = new GridLength(46);
+        MiniBarRow.Height = new GridLength(0);
+        MiniTitleBar.Visibility = Visibility.Collapsed;
+        Left = _preMiniBounds.Left;
+        Top = _preMiniBounds.Top;
+        Width = _preMiniBounds.Width;
+        Height = _preMiniBounds.Height;
+        WindowState = _preMiniState;
+    }
+
+    private sealed record MediaState(bool Playing, string Title, string Artist, string VideoId, string Thumbnail);
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        if (!_mediaTransport.Attach(new WindowInteropHelper(this).Handle))
+        {
+            return;
+        }
+
+        _mediaTransport.ButtonPressed += OnMediaTransportButtonPressed;
+        _mediaPollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _mediaPollTimer.Tick += OnMediaPollTick;
+        _mediaPollTimer.Start();
+    }
+
+    private async void OnMediaPollTick(object? sender, EventArgs e)
+    {
+        try
+        {
+            var mainState = _browserService.IsSuspended
+                ? null
+                : ParseMediaState(await _browserService.ExecuteScriptAsyncSafe(PlayerQueryScript));
+            var musicWindow = _musicWindow is { IsLoaded: true } ? _musicWindow : null;
+            var musicState = musicWindow is null || musicWindow.IsSuspended
+                ? null
+                : ParseMediaState(await musicWindow.ExecuteScriptAsyncSafe(MusicQueryScript));
+
+            // Hardware keys always control whichever source is actually playing;
+            // with both playing (or both idle), the music window wins.
+            _mediaTarget = musicState?.Playing == true ? "music"
+                : mainState?.Playing == true ? "main"
+                : musicState is not null ? "music" : "main";
+
+            var state = _mediaTarget == "music" ? (musicState ?? mainState) : (mainState ?? musicState);
+            if (state is not { } current)
+            {
+                return;
+            }
+
+            var thumbnail = current.VideoId.Length == 11
+                ? $"https://i.ytimg.com/vi/{current.VideoId}/mqdefault.jpg"
+                : current.Thumbnail;
+            _mediaTransport.Update(current.Title, current.Artist, thumbnail, current.Playing);
+        }
+        catch (Exception)
+        {
+            // The media-key bridge is best-effort; a missed poll retries in a second.
+        }
+    }
+
+    private void OnMediaTransportButtonPressed(object? sender, MediaTransportButton button)
+    {
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            try
+            {
+                if (_browserService.IsSuspended && _mediaTarget != "music")
+                {
+                    // A suspended renderer cannot honor keys; wake it first.
+                    await _browserService.SetSuspendedAsync(false);
+                }
+
+                var action = button switch
+                {
+                    MediaTransportButton.Play => "play",
+                    MediaTransportButton.Pause => "pause",
+                    MediaTransportButton.Next => "next",
+                    MediaTransportButton.Previous => "previous",
+                    _ => "",
+                };
+                if (action.Length == 0)
+                {
+                    return;
+                }
+
+                var script = PlayerCommandScript(action);
+                if (_mediaTarget == "music" && _musicWindow is { IsLoaded: true } music)
+                {
+                    await music.ExecuteScriptAsyncSafe(script);
+                }
+                else
+                {
+                    await _browserService.ExecuteScriptAsyncSafe(script);
+                }
+            }
+            catch (Exception)
+            {
+                // Best-effort commands; playback state recovers on the next poll.
+            }
+        }));
+    }
+
+    private static (bool Playing, string Title, string Artist, string VideoId, string Thumbnail)? ParseMediaState(string? scriptResult)
+    {
+        if (string.IsNullOrWhiteSpace(scriptResult))
+        {
+            return null;
+        }
+
+        try
+        {
+            // ExecuteScriptAsync wraps the script's JSON return value in a JSON string.
+            var json = JsonSerializer.Deserialize<string>(scriptResult);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            return (
+                root.TryGetProperty("playing", out var playing) && playing.GetBoolean(),
+                root.TryGetProperty("title", out var title) ? title.GetString() ?? "" : "",
+                root.TryGetProperty("author", out var author) ? author.GetString() ?? "" : "",
+                root.TryGetProperty("videoId", out var videoId) ? videoId.GetString() ?? "" : "",
+                root.TryGetProperty("thumb", out var thumbnail) ? thumbnail.GetString() ?? "" : ""
+            );
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private const string PlayerQueryScript = @"
+(() => {
+  try {
+    const mp = document.getElementById('movie_player');
+    const video = document.querySelector('video');
+    const playing = !!(video && !video.paused && !video.ended) || !!(mp && mp.getPlayerState && mp.getPlayerState() === 1);
+    let title = '';
+    let author = '';
+    let videoId = '';
+    if (mp && mp.getVideoData) {
+      const data = mp.getVideoData();
+      title = data.title || '';
+      author = data.author || '';
+      videoId = data.video_id || '';
+    }
+    return JSON.stringify({ playing, title, author, videoId });
+  } catch (error) {
+    return JSON.stringify({ playing: false, title: '', author: '', videoId: '' });
+  }
+})()";
+
+    private const string MusicQueryScript = @"
+(() => {
+  try {
+    const video = document.querySelector('video');
+    const playing = !!(video && !video.paused && !video.ended);
+    const titleEl = document.querySelector('.ytmusic-player-bar.title');
+    const bylineEl = document.querySelector('.ytmusic-player-bar.byline');
+    const imageEl = document.querySelector('ytmusic-player-bar img');
+    let videoId = '';
+    const link = document.querySelector('ytmusic-player-bar a[href*=""watch?v=""]');
+    if (link) {
+      const match = /(?:v=)([A-Za-z0-9_-]{11})/.exec(link.getAttribute('href') || '');
+      if (match) videoId = match[1];
+    }
+    return JSON.stringify({
+      playing,
+      title: titleEl ? titleEl.textContent : '',
+      author: bylineEl ? bylineEl.textContent : '',
+      videoId,
+      thumb: imageEl ? imageEl.src : ''
+    });
+  } catch (error) {
+    return JSON.stringify({ playing: false, title: '', author: '', videoId: '', thumb: '' });
+  }
+})()";
+
+    private static string PlayerCommandScript(string action) => $@"
+(() => {{
+  try {{
+    const mp = document.getElementById('movie_player');
+    const video = document.querySelector('video');
+    if (mp && action === 'play' && mp.playVideo) {{ mp.playVideo(); return; }}
+    if (mp && action === 'pause' && mp.pauseVideo) {{ mp.pauseVideo(); return; }}
+    if (mp && action === 'next' && mp.nextVideo) {{ mp.nextVideo(); return; }}
+    if (mp && action === 'previous' && mp.previousVideo) {{ mp.previousVideo(); return; }}
+    if (!video) return;
+    if (action === 'play' && video.paused) video.play();
+    if (action === 'pause' && !video.paused) video.pause();
+    if (action === 'next') document.querySelector('.ytmusic-player-bar.next-button, .ytp-next-button')?.click();
+    if (action === 'previous') document.querySelector('.ytmusic-player-bar.previous-button, .ytp-prev-button')?.click();
+  }} catch (error) {{ }}
+}})()";
+
     private void OnExternalNavigationRequested(object? sender, ExternalNavigationEventArgs e)
     {
         Dispatcher.Invoke(() =>
@@ -265,42 +616,69 @@ public partial class MainWindow : Window
         e.IsAllowed = result == MessageBoxResult.Yes;
     }
 
-    private async void OnBrowserProcessFailed(object? sender, BrowserFailureEventArgs e)
+    private async void OnStateChanged(object? sender, EventArgs e)
     {
-        if (e.Kind == BrowserFailureKind.Renderer)
+        if (_shutdownInProgress || !_initialized)
         {
-            var result = MessageBox.Show(
-                "YouTube renderer stopped unexpectedly. Reload the page?",
-                "MyTube",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Warning,
-                MessageBoxResult.Yes);
-            if (result == MessageBoxResult.Yes)
-            {
-                _browserService.Reload();
-            }
-
             return;
         }
 
-        if (e.Kind != BrowserFailureKind.Browser || _browserRecreateAttempts >= 1)
+        await _browserService.SetSuspendedAsync(
+            WindowState == WindowState.Minimized && _settings.SuspendWhenMinimized);
+    }
+
+    private void OnBrowserProcessFailed(object? sender, BrowserFailureEventArgs e)
+    {
+        if (e.Kind is BrowserFailureKind.Auxiliary
+            or BrowserFailureKind.Other
+            or BrowserFailureKind.RendererUnresponsive)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(new Action(() => _ = RecoverFromBrowserFailureAsync(e.Kind)));
+    }
+
+    private async Task RecoverFromBrowserFailureAsync(BrowserFailureKind kind)
+    {
+        if (_processRecoveryInProgress)
+        {
+            return;
+        }
+
+        _processRecoveryInProgress = true;
+        try
+        {
+            if (kind == BrowserFailureKind.Renderer)
+            {
+                _browserService.Reload();
+                return;
+            }
+
+            if (kind == BrowserFailureKind.Browser)
+            {
+                await RecreateBrowserAsync();
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error("WebView2 process recovery failed.", exception);
+        }
+        finally
+        {
+            _processRecoveryInProgress = false;
+        }
+    }
+
+    private async Task RecreateBrowserAsync()
+    {
+        if (_browserRecreateAttempts >= 1)
         {
             MessageBox.Show(
-                "The WebView2 browser process stopped. Close and reopen MyTube to continue.",
+                "MyTube could not recover the WebView2 browser. Close and reopen the app.",
                 "MyTube",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
-            return;
-        }
-
-        var recovery = MessageBox.Show(
-            "The WebView2 browser process stopped. Recreate the browser once?",
-            "MyTube",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.Yes);
-        if (recovery != MessageBoxResult.Yes)
-        {
             return;
         }
 

@@ -76,6 +76,37 @@ public sealed class FilterEngineTests
             "Media").IsBlocked);
     }
 
+    [TestMethod]
+    public async Task DefaultRulesBlockYouTubeAdControlRequestsButNotVideoPlayback()
+    {
+        var logDirectory = Path.Combine(Path.GetTempPath(), "MyTube.Tests", Guid.NewGuid().ToString("N"));
+        var engine = new FilterEngine(
+            new LocalFilterListProvider(),
+            new LoggingService(logDirectory));
+        await engine.InitializeAsync();
+
+        Assert.IsTrue(engine.Evaluate(
+            "https://www.youtube.com/api/stats/ads?ver=2",
+            "POST",
+            "XmlHttpRequest").IsBlocked);
+        Assert.IsTrue(engine.Evaluate(
+            "https://www.youtube.com/pagead/viewthroughconversion/123",
+            "GET",
+            "Other").IsBlocked);
+        Assert.IsTrue(engine.Evaluate(
+            "https://www.youtube.com/ptracking?event=ad",
+            "POST",
+            "Ping").IsBlocked);
+        Assert.IsFalse(engine.Evaluate(
+            "https://www.youtube.com/youtubei/v1/player",
+            "POST",
+            "XmlHttpRequest").IsBlocked);
+        Assert.IsFalse(engine.Evaluate(
+            "https://rr1---sn.example.googlevideo.com/videoplayback?id=content",
+            "GET",
+            "Media").IsBlocked);
+    }
+
     private static async Task<FilterEngine> CreateEngineAsync(params string[] rules)
     {
         var logDirectory = Path.Combine(Path.GetTempPath(), "MyTube.Tests", Guid.NewGuid().ToString("N"));

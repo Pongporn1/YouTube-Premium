@@ -49,6 +49,9 @@
                     <StackPanel>
                         <CheckBox Content="Open YouTube on startup"
                                   IsChecked="{Binding Draft.OpenYouTubeOnStartup}" />
+                        <CheckBox Content="Suspend browser when minimized (saves CPU and memory; audio pauses)"
+                                  IsChecked="{Binding Draft.SuspendWhenMinimized}"
+                                  ToolTip="Freezes the YouTube renderer while MyTube is minimized. Audio stops while suspended and resumes when restored." />
                         <CheckBox Content="Remember session"
                                   IsChecked="{Binding Draft.RememberSession}" />
                         <CheckBox Content="YouTube-only mode (required)"

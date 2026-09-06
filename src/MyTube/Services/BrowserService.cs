@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using MyTube.Models;
@@ -9,6 +11,16 @@ namespace MyTube.Services;
 public sealed class BrowserService : IDisposable
 {
     public static readonly Uri HomeUri = new("https://www.youtube.com/");
+    public static readonly Uri MusicUri = new("https://music.youtube.com/");
+    private static readonly CoreWebView2WebResourceContext[] FilteredResourceContexts =
+    [
+        CoreWebView2WebResourceContext.Script,
+        CoreWebView2WebResourceContext.Image,
+        CoreWebView2WebResourceContext.XmlHttpRequest,
+        CoreWebView2WebResourceContext.Fetch,
+        CoreWebView2WebResourceContext.Ping,
+        CoreWebView2WebResourceContext.Other,
+    ];
 
     private readonly ProfileService _profileService;
     private readonly LoggingService _logger;
@@ -17,9 +29,13 @@ public sealed class BrowserService : IDisposable
     private readonly IFilterEngine _filterEngine;
     private readonly AppSettings _settings;
     private WebView2? _webView;
+    private CoreWebView2Environment? _environment;
     private string? _documentStartFilterScriptId;
+    private int _blockedResourceCount;
     private bool _authenticationFlowActive;
     private bool _disposed;
+
+    private readonly string? _additionalBrowserArguments;
 
     public BrowserService(
         ProfileService profileService,
@@ -27,7 +43,8 @@ public sealed class BrowserService : IDisposable
         NavigationPolicyService navigationPolicy,
         CosmeticFilterService cosmeticFilterService,
         IFilterEngine filterEngine,
-        AppSettings settings)
+        AppSettings settings,
+        string? additionalBrowserArguments = null)
     {
         _profileService = profileService;
         _logger = logger;
@@ -35,6 +52,7 @@ public sealed class BrowserService : IDisposable
         _cosmeticFilterService = cosmeticFilterService;
         _filterEngine = filterEngine;
         _settings = settings;
+        _additionalBrowserArguments = additionalBrowserArguments;
     }
 
     public event EventHandler? NavigationStateChanged;
@@ -51,7 +69,28 @@ public sealed class BrowserService : IDisposable
 
     public bool CanGoForward => _webView?.CanGoForward == true;
 
-    public async Task InitializeAsync(WebView2 webView)
+    public bool IsSuspended => _webView?.CoreWebView2?.IsSuspended ?? false;
+
+    // Script execution that never throws: used by background helpers such as
+    // the media-key bridge where a suspended or crashed renderer is expected.
+    public async Task<string?> ExecuteScriptAsyncSafe(string script)
+    {
+        if (_webView?.CoreWebView2 is not { } coreWebView || _disposed)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await coreWebView.ExecuteScriptAsync(script);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    public async Task InitializeAsync(WebView2 webView, Uri? startUri = null, CoreWebView2Environment? environmentOverride = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -61,9 +100,9 @@ public sealed class BrowserService : IDisposable
         }
 
         _webView = webView;
-        var environment = await CoreWebView2Environment.CreateAsync(
-            userDataFolder: _profileService.UserDataDirectory);
+        var environment = environmentOverride ?? await GetEnvironmentAsync();
         await webView.EnsureCoreWebView2Async(environment);
+        webView.CoreWebView2.ProcessFailed += OnProcessFailed;
 
         try
         {
@@ -80,19 +119,50 @@ public sealed class BrowserService : IDisposable
         webView.CoreWebView2.NavigationStarting += OnNavigationStarting;
         webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
         webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
-        webView.CoreWebView2.AddWebResourceRequestedFilter(
-            "*",
-            CoreWebView2WebResourceContext.All,
-            CoreWebView2WebResourceRequestSourceKinds.All);
+        foreach (var resourceContext in FilteredResourceContexts)
+        {
+            webView.CoreWebView2.AddWebResourceRequestedFilter(
+                "*",
+                resourceContext,
+                CoreWebView2WebResourceRequestSourceKinds.All);
+        }
         webView.CoreWebView2.WebResourceRequested += OnWebResourceRequested;
         webView.CoreWebView2.DownloadStarting += OnDownloadStarting;
-        webView.CoreWebView2.ProcessFailed += OnProcessFailed;
 
         _logger.Info("WebView2 initialized with the dedicated MyTube profile.");
-        if (_settings.OpenYouTubeOnStartup)
+        if (startUri is not null)
+        {
+            _webView.CoreWebView2.Navigate(startUri.AbsoluteUri);
+        }
+        else if (_settings.OpenYouTubeOnStartup)
         {
             NavigateHome();
         }
+    }
+
+    // One environment is shared by every window in the process so the WebView2
+    // browser process, cookies, and profile stay common (and light).
+    public async Task<CoreWebView2Environment> GetEnvironmentAsync()
+    {
+        _environment ??= await CoreWebView2Environment.CreateAsync(
+            userDataFolder: _profileService.UserDataDirectory,
+            options: BuildEnvironmentOptions());
+        return _environment;
+    }
+
+    private CoreWebView2EnvironmentOptions BuildEnvironmentOptions()
+    {
+        return new CoreWebView2EnvironmentOptions
+        {
+            // MyTube's own filter engine already blocks known trackers, so the
+            // built-in tracking prevention would only duplicate per-request work.
+            EnableTrackingPrevention = false,
+            // Keep the process tree small: one renderer per site instead of
+            // one per tab/frame tree. Playback stays on the GPU process.
+            // The disk cache cap bounds YouTube's media cache growth.
+            AdditionalBrowserArguments = _additionalBrowserArguments
+                ?? "--process-per-site --renderer-process-limit=2 --disk-cache-size=268435456",
+        };
     }
 
     public void GoBack()
@@ -124,11 +194,68 @@ public sealed class BrowserService : IDisposable
         }
     }
 
+    public void NavigateTo(Uri uri)
+    {
+        if (_webView?.CoreWebView2 is not null)
+        {
+            _webView.CoreWebView2.Navigate(uri.AbsoluteUri);
+        }
+    }
+
     public async Task ApplySettingsAsync()
     {
         ApplyBrowserSettings();
         await RefreshDocumentStartFilterAsync();
         await ApplyCosmeticFiltersAsync();
+    }
+
+    public async Task SetSuspendedAsync(bool suspended)
+    {
+        if (_webView?.CoreWebView2 is not { } coreWebView || _disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (suspended)
+            {
+                if (!coreWebView.IsSuspended)
+                {
+                    if (await coreWebView.TrySuspendAsync())
+                    {
+                        TrimWorkingSet();
+                    }
+                }
+            }
+            else if (coreWebView.IsSuspended)
+            {
+                coreWebView.Resume();
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.Error("WebView2 suspend/resume failed; continuing unsuspended.", exception);
+        }
+    }
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessWorkingSetSize(IntPtr process, IntPtr minimumWorkingSetSize, IntPtr maximumWorkingSetSize);
+
+    // After suspension nothing touches the host's pages for a while, so handing
+    // the working set back to Windows is free; the pages fault back in softly
+    // on resume.
+    private static void TrimWorkingSet()
+    {
+        try
+        {
+            SetProcessWorkingSetSize(System.Diagnostics.Process.GetCurrentProcess().Handle, new IntPtr(-1), new IntPtr(-1));
+        }
+        catch (Exception)
+        {
+            // Trimming is cosmetic; failing to trim changes nothing functional.
+        }
     }
 
     public void OpenDevTools()
@@ -173,6 +300,7 @@ public sealed class BrowserService : IDisposable
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
+        Interlocked.Exchange(ref _blockedResourceCount, 0);
         var currentUri = TryCreateAbsoluteUri(_webView?.Source?.AbsoluteUri);
         var targetUri = TryCreateAbsoluteUri(e.Uri);
         var decision = EvaluateNavigation(targetUri, currentUri);
@@ -264,13 +392,13 @@ public sealed class BrowserService : IDisposable
         return uri?.IdnHost ?? "invalid";
     }
 
-    private async void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
         if (e.IsSuccess)
         {
-            _logger.Info("Navigation completed.");
+            var blockedResources = Interlocked.Exchange(ref _blockedResourceCount, 0);
+            _logger.Info($"Navigation completed. BlockedResources={blockedResources}");
             BrowserAvailabilityChanged?.Invoke(this, new BrowserAvailabilityEventArgs(true));
-            await ApplyCosmeticFiltersAsync();
         }
         else
         {
@@ -327,13 +455,6 @@ public sealed class BrowserService : IDisposable
             return;
         }
 
-        // Playback wins over filtering if a rule is too broad. WebSocket traffic is
-        // not surfaced as a WebResourceRequested context by this WebView2 API.
-        if (e.ResourceContext == CoreWebView2WebResourceContext.Media)
-        {
-            return;
-        }
-
         try
         {
             var result = _filterEngine.Evaluate(
@@ -350,7 +471,7 @@ public sealed class BrowserService : IDisposable
                 403,
                 "Blocked by MyTube",
                 "Content-Type: text/plain\r\nCache-Control: no-store");
-            _logger.Info($"Blocked a filtered resource. Reason={result.Reason}");
+            Interlocked.Increment(ref _blockedResourceCount);
         }
         catch (Exception exception)
         {
@@ -384,17 +505,31 @@ public sealed class BrowserService : IDisposable
 
     private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
-        var failureKind = e.ProcessFailedKind switch
+        var failureKind = ClassifyProcessFailure(e.ProcessFailedKind);
+        _logger.Warning(
+            $"WebView2 process failure. Kind={e.ProcessFailedKind} Reason={e.Reason} "
+            + $"ExitCode={e.ExitCode} Description={e.ProcessDescription}");
+        BrowserProcessFailed?.Invoke(this, new BrowserFailureEventArgs(failureKind));
+    }
+
+    internal static BrowserFailureKind ClassifyProcessFailure(CoreWebView2ProcessFailedKind processFailedKind)
+    {
+        return processFailedKind switch
         {
             CoreWebView2ProcessFailedKind.BrowserProcessExited => BrowserFailureKind.Browser,
             CoreWebView2ProcessFailedKind.RenderProcessExited
-                or CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
-                or CoreWebView2ProcessFailedKind.FrameRenderProcessExited => BrowserFailureKind.Renderer,
+                => BrowserFailureKind.Renderer,
+            CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
+                => BrowserFailureKind.RendererUnresponsive,
+            CoreWebView2ProcessFailedKind.FrameRenderProcessExited
+                or CoreWebView2ProcessFailedKind.UtilityProcessExited
+                or CoreWebView2ProcessFailedKind.SandboxHelperProcessExited
+                or CoreWebView2ProcessFailedKind.GpuProcessExited
+                or CoreWebView2ProcessFailedKind.PpapiPluginProcessExited
+                or CoreWebView2ProcessFailedKind.PpapiBrokerProcessExited
+                => BrowserFailureKind.Auxiliary,
             _ => BrowserFailureKind.Other,
         };
-
-        _logger.Warning($"WebView2 process failure. Kind={e.ProcessFailedKind}");
-        BrowserProcessFailed?.Invoke(this, new BrowserFailureEventArgs(failureKind));
     }
 
     private static bool IsConnectivityFailure(CoreWebView2WebErrorStatus status)

@@ -30,19 +30,27 @@ public sealed class SettingsService
 
         try
         {
-            await using var stream = File.OpenRead(_settingsFilePath);
-            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(
-                stream,
-                SerializerOptions,
-                cancellationToken);
+            AppSettings? settings;
+            await using (var stream = File.OpenRead(_settingsFilePath))
+            {
+                settings = await JsonSerializer.DeserializeAsync<AppSettings>(
+                    stream,
+                    SerializerOptions,
+                    cancellationToken);
+            }
             if (settings is null)
             {
                 throw new JsonException("Settings file contained no settings object.");
             }
 
+            var settingsWereMigrated = settings.SettingsSchemaVersion < AppSettings.CurrentSchemaVersion;
             Migrate(settings);
             settings.Telemetry = false;
             settings.YouTubeOnlyMode = true;
+            if (settingsWereMigrated)
+            {
+                await SaveAsync(settings, cancellationToken);
+            }
             return settings;
         }
         catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)

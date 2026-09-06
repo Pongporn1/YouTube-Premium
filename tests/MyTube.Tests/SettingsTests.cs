@@ -15,6 +15,7 @@ public sealed class SettingsTests
         var expected = new AppSettings
         {
             YouTubeOnlyMode = false,
+            SuspendWhenMinimized = false,
             HideShorts = true,
             HideComments = true,
             FocusMode = true,
@@ -29,6 +30,7 @@ public sealed class SettingsTests
         Assert.IsTrue(actual.HideComments);
         Assert.IsTrue(actual.FocusMode);
         Assert.IsTrue(actual.ClearCookiesOnExit);
+        Assert.IsFalse(actual.SuspendWhenMinimized);
         Assert.IsFalse(actual.Telemetry);
     }
 
@@ -46,6 +48,7 @@ public sealed class SettingsTests
         Assert.IsTrue(settings.RememberSession);
         Assert.IsTrue(settings.YouTubeOnlyMode);
         Assert.IsTrue(settings.EnableContentFiltering);
+        Assert.IsTrue(settings.SuspendWhenMinimized);
         Assert.IsTrue(settings.HidePromotions);
         Assert.IsFalse(settings.Telemetry);
     }
@@ -64,6 +67,8 @@ public sealed class SettingsTests
 
         Assert.AreEqual(AppSettings.CurrentSchemaVersion, settings.SettingsSchemaVersion);
         Assert.IsTrue(settings.HidePromotions);
+        var persisted = await File.ReadAllTextAsync(path);
+        StringAssert.Contains(persisted, "\"SettingsSchemaVersion\": 3");
     }
 
     private static SettingsService CreateService(string path, string directory)
