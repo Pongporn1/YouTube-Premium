@@ -212,21 +212,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (e.ChangedButton == MouseButton.Left)
-        {
-            try
-            {
-                DragMove();
-            }
-            catch (InvalidOperationException)
-            {
-                // The button was released before DragMove started; nothing to move.
-            }
-        }
-    }
-
     private void OnMinimizeClick(object sender, RoutedEventArgs e)
     {
         // Folding to the taskbar keeps playback running; restore from there.

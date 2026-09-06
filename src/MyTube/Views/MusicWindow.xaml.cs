@@ -66,17 +66,13 @@ public partial class MusicWindow : Window
 
     private void OnTitleBarMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton == MouseButton.Left)
-        {
-            try
-            {
-                DragMove();
-            }
-            catch (InvalidOperationException)
-            {
-                // The button was released before DragMove started; nothing to move.
-            }
-        }
+        // Dragging is handled by WindowChrome's caption area; kept as no-op hook.
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e)
+    {
+        // Folding to the taskbar keeps playback running; restore from there.
+        WindowState = WindowState.Minimized;
     }
 
     private void OnTopmostClick(object sender, RoutedEventArgs e)

@@ -27,7 +27,6 @@ public partial class MainWindow : Window
     private bool _miniPlayerActive;
     private Rect _preMiniBounds;
     private WindowState _preMiniState;
-    private WindowStyle _preMiniStyle;
     private ResizeMode _preMiniResize;
     private WindowStyle _previousWindowStyle;
     private ResizeMode _previousResizeMode;
@@ -58,7 +57,7 @@ public partial class MainWindow : Window
             var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "Branding", "MyTube.ico");
             if (System.IO.File.Exists(iconPath))
             {
-                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
+                TitleIcon.Source = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
             }
         }
         catch (Exception)
@@ -249,8 +248,7 @@ public partial class MainWindow : Window
         _previousResizeMode = ResizeMode;
         _previousWindowState = WindowState;
         _appFullscreen = true;
-        Toolbar.Visibility = Visibility.Collapsed;
-        ToolbarRow.Height = new GridLength(0);
+        TitleBarRow.Height = new GridLength(0);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         WindowState = WindowState.Maximized;
@@ -267,8 +265,7 @@ public partial class MainWindow : Window
         WindowStyle = _previousWindowStyle;
         ResizeMode = _previousResizeMode;
         WindowState = _previousWindowState;
-        ToolbarRow.Height = new GridLength(46);
-        Toolbar.Visibility = Visibility.Visible;
+        TitleBarRow.Height = new GridLength(48);
     }
 
     private async void OnMusicClick(object sender, RoutedEventArgs e)
@@ -305,24 +302,19 @@ public partial class MainWindow : Window
         ToggleMiniPlayer();
     }
 
-    // The WebView2 is an HwndHost that occludes and swallows input for any WPF
-    // element placed over it, so dragging is wired to the dedicated WPF title
-    // bar row instead of an overlay on top of the player.
-    private void OnMiniPlayerDragStripMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnMinimizeWindowClick(object sender, RoutedEventArgs e)
     {
-        if (!_miniPlayerActive || e.ChangedButton != MouseButton.Left)
-        {
-            return;
-        }
+        WindowState = WindowState.Minimized;
+    }
 
-        try
-        {
-            DragMove();
-        }
-        catch (InvalidOperationException)
-        {
-            // The button was released before DragMove started; nothing to move.
-        }
+    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    private void OnCloseWindowClick(object sender, RoutedEventArgs e)
+    {
+        Close();
     }
 
     // Shrinks the whole window to a small always-on-top rectangle: the video
@@ -349,7 +341,6 @@ public partial class MainWindow : Window
         _miniPlayerActive = true;
         _preMiniBounds = new Rect(Left, Top, ActualWidth, ActualHeight);
         _preMiniState = WindowState;
-        _preMiniStyle = WindowStyle;
         _preMiniResize = ResizeMode;
 
         if (WindowState != WindowState.Normal)
@@ -363,15 +354,14 @@ public partial class MainWindow : Window
         Left = workArea.Right - ActualWidth - 12;
         Top = workArea.Bottom - ActualHeight - 12;
 
-        WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
         Topmost = true;
-        Toolbar.Visibility = Visibility.Collapsed;
-        ToolbarRow.Height = new GridLength(0);
-        // A real WPF row, not an overlay: the WebView2 is an HwndHost that
-        // occludes and swallows input for any WPF element placed over it.
-        MiniBarRow.Height = new GridLength(32);
-        MiniTitleBar.Visibility = Visibility.Visible;
+        // Mini mode slims the integrated title bar: navigation and settings hide,
+        // the caption text explains that dragging happens there.
+        NavStack.Visibility = Visibility.Collapsed;
+        SettingsButton.Visibility = Visibility.Collapsed;
+        TitleText.Text = "MyTube mini — ลากแถบหัวเพื่อย้าย";
+        MiniPlayerButton.ToolTip = "Exit mini player (Ctrl+Shift+M)";
     }
 
     private void ExitMiniPlayer()
@@ -383,12 +373,11 @@ public partial class MainWindow : Window
 
         _miniPlayerActive = false;
         Topmost = false;
-        WindowStyle = _preMiniStyle;
         ResizeMode = _preMiniResize;
-        Toolbar.Visibility = Visibility.Visible;
-        ToolbarRow.Height = new GridLength(46);
-        MiniBarRow.Height = new GridLength(0);
-        MiniTitleBar.Visibility = Visibility.Collapsed;
+        NavStack.Visibility = Visibility.Visible;
+        SettingsButton.Visibility = Visibility.Visible;
+        TitleText.Text = "MyTube Premium";
+        MiniPlayerButton.ToolTip = "Mini player always on top (Ctrl+Shift+M)";
         Left = _preMiniBounds.Left;
         Top = _preMiniBounds.Top;
         Width = _preMiniBounds.Width;
@@ -631,6 +620,7 @@ public partial class MainWindow : Window
 
     private async void OnStateChanged(object? sender, EventArgs e)
     {
+        MaximizeButton.Content = WindowState == WindowState.Maximized ? "\u2750" : "\u25A1";
         if (_shutdownInProgress || !_initialized)
         {
             return;

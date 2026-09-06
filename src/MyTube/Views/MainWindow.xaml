@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="MyTube"
+        Title="MyTube Premium"
         Width="1280"
         Height="800"
         MinWidth="720"
@@ -14,99 +14,96 @@
         PreviewKeyDown="OnPreviewKeyDown"
         Closing="OnClosing"
         Closed="OnClosed">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="48"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition x:Name="ToolbarRow" Height="46" />
-            <RowDefinition x:Name="MiniBarRow" Height="0" />
+            <RowDefinition x:Name="TitleBarRow" Height="48" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource ToolbarBrush}">
-            <Grid Margin="6,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
-                <Button Grid.Column="0"
-                        Content="&#x2190;"
-                        Command="{Binding BackCommand}"
-                        IsEnabled="{Binding CanGoBack}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Back (Alt+Left)" />
-                <Button Grid.Column="1"
-                        Content="&#x2192;"
-                        Command="{Binding ForwardCommand}"
-                        IsEnabled="{Binding CanGoForward}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Forward (Alt+Right)" />
-                <Button Grid.Column="2"
-                        Content="&#x27F3;"
-                        Command="{Binding ReloadCommand}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Reload (Ctrl+R)" />
-                <Button Grid.Column="3"
-                        Content="&#x2302;"
-                        Command="{Binding HomeCommand}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="YouTube Home" />
-                <Button Grid.Column="4"
-                        Content="&#x266B;"
-                        Click="OnMusicClick"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="YouTube Music" />
-
-                <TextBlock Grid.Column="5"
-                           Text="MyTube"
-                           Foreground="{StaticResource TextBrush}"
-                           FontSize="15"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center" />
-
-                <Button x:Name="MiniPlayerButton" Grid.Column="6"
-                        Content="&#x29C9;"
-                        Click="OnMiniPlayerClick"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Mini player always on top (Ctrl+Shift+M)" />
-                <Button Grid.Column="7"
-                        Content="&#x2699;"
-                        Command="{Binding OpenSettingsCommand}"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Settings" />
-            </Grid>
-        </Border>
-
-        <Border x:Name="MiniTitleBar" Grid.Row="1" Height="32" Background="#15181E" Visibility="Collapsed"
-                MouseLeftButtonDown="OnMiniPlayerDragStripMouseDown">
+        <Border x:Name="TitleBar" Grid.Row="0" Background="#15181E">
             <Grid>
                 <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0"
-                           Margin="12,0"
-                           Text="MyTube mini — ลากแถบนี้เพื่อย้าย"
-                           Foreground="#B8BEC9"
-                           FontSize="12"
-                           VerticalAlignment="Center" />
-                <Button Grid.Column="1"
-                        Width="40"
-                        Height="26"
-                        Margin="0,0,4,0"
-                        Content="&#x2715;"
-                        Click="OnMiniPlayerClick"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="Exit mini player (Esc)" />
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="12,0,6,0" VerticalAlignment="Center">
+                    <Image x:Name="TitleIcon" Width="18" Height="18" />
+                    <TextBlock x:Name="TitleText"
+                               Text="MyTube Premium"
+                               Margin="9,0,0,0"
+                               Foreground="#B8BEC9"
+                               FontSize="12"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel x:Name="NavStack" Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#x2190;"
+                            Command="{Binding BackCommand}"
+                            IsEnabled="{Binding CanGoBack}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="Back (Alt+Left)" />
+                    <Button Content="&#x2192;"
+                            Command="{Binding ForwardCommand}"
+                            IsEnabled="{Binding CanGoForward}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="Forward (Alt+Right)" />
+                    <Button Content="&#x27F3;"
+                            Command="{Binding ReloadCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="Reload (Ctrl+R)" />
+                    <Button Content="&#x2302;"
+                            Command="{Binding HomeCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="YouTube Home" />
+                    <Button Content="&#x266B;"
+                            Click="OnMusicClick"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="MyTube Music window" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="MiniPlayerButton"
+                            Content="&#x29C9;"
+                            Click="OnMiniPlayerClick"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="Mini player always on top (Ctrl+Shift+M)" />
+                    <Button x:Name="SettingsButton"
+                            Content="&#x2699;"
+                            Command="{Binding OpenSettingsCommand}"
+                            Style="{StaticResource ToolbarButtonStyle}"
+                            ToolTip="Settings" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Content="&#x2500;"
+                            Click="OnMinimizeWindowClick"
+                            Style="{StaticResource WindowButtonStyle}"
+                            ToolTip="Minimize" />
+                    <Button x:Name="MaximizeButton"
+                            Content="&#x25A1;"
+                            Click="OnMaximizeRestoreClick"
+                            Style="{StaticResource WindowButtonStyle}"
+                            ToolTip="Maximize / Restore" />
+                    <Button Content="&#x2715;"
+                            Click="OnCloseWindowClick"
+                            Style="{StaticResource WindowCloseButtonStyle}"
+                            ToolTip="Close" />
+                </StackPanel>
             </Grid>
         </Border>
 
-        <Grid x:Name="BrowserHost" Grid.Row="2" Background="#0F1115">
+        <Grid x:Name="BrowserHost" Grid.Row="1" Background="#0F1115">
             <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0F1115" />
             <Border x:Name="LoadingPanel" Background="#111318">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">

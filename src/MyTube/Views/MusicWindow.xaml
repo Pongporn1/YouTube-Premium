@@ -13,41 +13,46 @@
         Loaded="OnLoaded"
         Closed="OnClosed"
         PreviewKeyDown="OnPreviewKeyDown">
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="32" />
+            <RowDefinition Height="36" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#15181E" MouseLeftButtonDown="OnTitleBarMouseDown">
+        <Border Grid.Row="0" Background="#15181E">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0"
                            Margin="12,0"
-                           Text="♫ MyTube Music — ลากแถบนี้เพื่อย้าย"
+                           Text="♫ MyTube Music"
                            Foreground="#B8BEC9"
                            FontSize="12"
                            VerticalAlignment="Center" />
-                <Button x:Name="TopmostButton" Grid.Column="1"
-                        Width="38"
-                        Height="26"
-                        Margin="0,0,4,0"
-                        Content="&#x2691;"
-                        Click="OnTopmostClick"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="สลับลอยด้านบนเสมอ" />
-                <Button Grid.Column="2"
-                        Width="34"
-                        Height="26"
-                        Margin="0,0,4,0"
-                        Content="&#x2715;"
-                        Click="OnCloseClick"
-                        Style="{StaticResource ToolbarButtonStyle}"
-                        ToolTip="ปิดหน้าต่างเพลง" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button x:Name="TopmostButton"
+                            Content="&#x2691;"
+                            Click="OnTopmostClick"
+                            Style="{StaticResource WindowButtonStyle}"
+                            ToolTip="สลับลอยด้านบนเสมอ" />
+                    <Button Content="&#x2500;"
+                            Click="OnMinimizeClick"
+                            Style="{StaticResource WindowButtonStyle}"
+                            ToolTip="พับจอ (ย่อลง taskbar)" />
+                    <Button Content="&#x2715;"
+                            Click="OnCloseClick"
+                            Style="{StaticResource WindowCloseButtonStyle}"
+                            ToolTip="ปิด" />
+                </StackPanel>
             </Grid>
         </Border>
 
