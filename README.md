@@ -52,7 +52,7 @@ Run `artifacts\publish\win-x64\MyTube.exe` after publishing.
 
 ## Settings
 
-General settings control startup and session retention. YouTube-only navigation is shown as a required, locked security setting. Content settings can hide Shorts, the Home feed, recommendations, comments, merch, sponsored cards, and selected promotional popups. Sponsored-card hiding is enabled by default. Focus Mode combines the distraction-reduction options without hiding Search, Subscriptions, Library, Watch Later, or playlists.
+General settings control startup and session retention. **Suspend browser when minimized** freezes the WebView2 renderer while the window is minimized to save CPU and memory; audio pauses while suspended and resumes on restore. YouTube-only navigation is shown as a required, locked security setting. Content settings can hide Shorts, the Home feed, recommendations, comments, merch, sponsored cards, and selected promotional popups. Sponsored-card hiding is enabled by default. Focus Mode combines the distraction-reduction options without hiding Search, Subscriptions, Library, Watch Later, or playlists.
 
 Privacy settings control local filtering and optional cache/cookie clearing. Enabling **Clear cookies on exit** signs the user out of YouTube. Telemetry is always off. DevTools can be enabled only in Debug builds; Release builds force it off.
 
@@ -62,6 +62,9 @@ Keyboard shortcuts:
 - `Ctrl+R`: Reload
 - `Ctrl+L`: intentionally does nothing (there is no address bar)
 - `Ctrl+Shift+F`: toggle Focus Mode
+- `Ctrl+Shift+M`: toggle the mini player — a small always-on-top window anchored to the bottom-right; video and audio keep playing in the same session while other apps are used. `Esc` or the floating button exits.
+- The ♫ toolbar button opens a **separate MyTube Music window** (music.youtube.com, same account, same ad filtering) that keeps playing while the main window navigates anywhere, is minimized, or runs as the mini player. Pin/exit from its title bar.
+- **Windows media keys and the system media surface** (lock screen, volume flyout) control whichever source is actually playing — main window or Music window — showing the real title, channel, and thumbnail. Pressing play also wakes a minimized (suspended) window.
 - `F11`: application fullscreen
 - `Esc`: exit application fullscreen
 - `F12`: DevTools when enabled in a Debug build
@@ -99,7 +102,7 @@ BLOCK DOMAIN tracker.example.com RESOURCE Script,Image,XmlHttpRequest
 
 Basic `||domain^` and `@@||domain^` rules are also accepted. This is not a complete EasyList parser. Network filtering excludes WebView2 `Media` requests at runtime and fails open on errors, prioritizing playback stability. Remote filter updates are intentionally not implemented in the MVP; a future provider must fetch text rules only, never executable code.
 
-Cosmetic selectors are centralized in `YouTubeSelectors.cs`, and injection is refused on non-YouTube pages, including `accounts.google.com`. MyTube installs its filter at document creation time and always suppresses YouTube player ads by hiding the ad frame, muting and advancing only while the player reports an active ad, and activating the skip control when available. The promoted-content setting separately controls sponsored cards in the feed. Player suppression is deliberately scoped to YouTube's ad-state classes so normal video playback is restored immediately afterward. YouTube can change its player at any time, so live behavior must be rechecked after layout updates.
+Cosmetic selectors are centralized in `YouTubeSelectors.cs`, and injection is refused on non-YouTube pages, including `accounts.google.com`. MyTube installs its filter at document creation time and always suppresses YouTube player ads by hiding the ad frame, muting and advancing only while the player reports an active ad, and activating the skip control when available. The document-creation script also removes ad scheduling data (`adPlacements`, `adSlots`, `playerAds`) from YouTube player responses before the player reads them, so most ads never start at all; the in-player suppression remains as a backstop. The promoted-content setting separately controls sponsored cards in the feed. Player suppression is deliberately scoped to YouTube's ad-state classes so normal video playback is restored immediately afterward. YouTube can change its player at any time, so live behavior must be rechecked after layout updates.
 
 ## Fallback extension
 
@@ -108,6 +111,10 @@ See [`fallback-extension/README.md`](fallback-extension/README.md). The extensio
 ## Installer
 
 `installer/MyTube.iss` is an Inno Setup 6 script. Publish first, open the script in Inno Setup, and compile it to produce `MyTubeSetup.exe`. The installer creates a Start Menu shortcut, offers an optional Desktop shortcut, supports uninstall, and does not change the Windows default browser.
+
+## MyTubeMusic (gaming companion)
+
+`src/MyTubeMusic` builds `MyTubeMusic.exe`, a separate always-on-top music companion for gaming sessions. It plays music.youtube.com with MyTube's full ad/tracker filtering but is tuned to stay out of a game's way: GPU acceleration off, below-normal process priority, a 128 MB disk cache, a single renderer, and built-in Windows media-key (SMTC) support. It uses its own profile folder (`%LOCALAPPDATA%\MyTubeMusic`) — sign in to Google once inside the app for liked videos and playlists. Expect roughly 250–350 MB of RAM and near-zero GPU; CPU stays below-normal priority so an FPS game always wins under load. Publish with `dotnet publish src/MyTubeMusic -c Release -r win-x64 --self-contained false -o artifacts/publish/music-x64`.
 
 ## Troubleshooting
 

@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{F5FC89EA
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyTube.Tests", "tests\MyTube.Tests\MyTube.Tests.csproj", "{2E997053-33F7-45BC-8EA8-B119E7FA3494}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyTubeMusic", "src\MyTubeMusic\MyTubeMusic.csproj", "{7A8B2E08-DEC3-4A8D-B078-9D9F10756031}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{2E997053-33F7-45BC-8EA8-B119E7FA3494}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2E997053-33F7-45BC-8EA8-B119E7FA3494}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2E997053-33F7-45BC-8EA8-B119E7FA3494}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A8B2E08-DEC3-4A8D-B078-9D9F10756031}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A8B2E08-DEC3-4A8D-B078-9D9F10756031}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A8B2E08-DEC3-4A8D-B078-9D9F10756031}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A8B2E08-DEC3-4A8D-B078-9D9F10756031}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E45D5EA8-241E-44CC-A703-B4ED1AB1DBE6} = {25A94ACA-1D1A-4DAD-BACB-8DDDB39CB0A3}
 		{2E997053-33F7-45BC-8EA8-B119E7FA3494} = {F5FC89EA-641B-4401-9B2F-4C8069A37EF5}
+		{7A8B2E08-DEC3-4A8D-B078-9D9F10756031} = {25A94ACA-1D1A-4DAD-BACB-8DDDB39CB0A3}
 	EndGlobalSection
 EndGlobal
