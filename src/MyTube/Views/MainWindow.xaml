@@ -8,6 +8,7 @@
         MinWidth="720"
         MinHeight="480"
         Background="{StaticResource AppBackgroundBrush}"
+        WindowStyle="None"
         WindowStartupLocation="CenterScreen"
         SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded"

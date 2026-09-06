@@ -8,6 +8,7 @@
         MinWidth="340"
         MinHeight="300"
         Background="#0F1115"
+        WindowStyle="None"
         WindowStartupLocation="Manual"
         Topmost="True"
         SourceInitialized="OnSourceInitialized"

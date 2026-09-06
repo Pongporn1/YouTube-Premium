@@ -209,6 +209,8 @@ public sealed class BrowserService : IDisposable
         await ApplyCosmeticFiltersAsync();
     }
 
+    private bool _suspendTransitionInProgress;
+
     public async Task SetSuspendedAsync(bool suspended)
     {
         if (_webView?.CoreWebView2 is not { } coreWebView || _disposed)
@@ -216,6 +218,14 @@ public sealed class BrowserService : IDisposable
             return;
         }
 
+        // Rapid minimize/restore cycles can overlap transitions; WebView2 throws
+        // InvalidOperationException for concurrent suspend/resume operations.
+        if (_suspendTransitionInProgress)
+        {
+            return;
+        }
+
+        _suspendTransitionInProgress = true;
         try
         {
             if (suspended)
@@ -236,6 +246,10 @@ public sealed class BrowserService : IDisposable
         catch (Exception exception)
         {
             _logger.Error("WebView2 suspend/resume failed; continuing unsuspended.", exception);
+        }
+        finally
+        {
+            _suspendTransitionInProgress = false;
         }
     }
 

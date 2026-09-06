@@ -8,6 +8,7 @@
         MinWidth="360"
         MinHeight="240"
         Background="#0F1115"
+        WindowStyle="None"
         WindowStartupLocation="Manual"
         Topmost="True"
         Loaded="OnLoaded"

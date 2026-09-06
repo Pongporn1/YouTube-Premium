@@ -621,6 +621,13 @@ public partial class MainWindow : Window
     private async void OnStateChanged(object? sender, EventArgs e)
     {
         MaximizeButton.Content = WindowState == WindowState.Maximized ? "\u2750" : "\u25A1";
+        // The mini player is a small floating state; maximizing it (via snap or
+        // programmatically) promotes the window back to the full layout.
+        if (_miniPlayerActive && WindowState != WindowState.Normal)
+        {
+            ExitMiniPlayer();
+        }
+
         if (_shutdownInProgress || !_initialized)
         {
             return;
