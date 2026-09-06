@@ -227,6 +227,12 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnMinimizeClick(object sender, RoutedEventArgs e)
+    {
+        // Folding to the taskbar keeps playback running; restore from there.
+        WindowState = WindowState.Minimized;
+    }
+
     private void OnTopmostClick(object sender, RoutedEventArgs e)
     {
         Topmost = !Topmost;
