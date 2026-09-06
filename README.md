@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="docs/INSTALL.md"><img alt="Install guide" src="https://img.shields.io/badge/install-guide-2ea44f?style=flat-square"></a>
-  <a href="docs/INSTALL-TH.md"><img alt="Thai guide" src="https://img.shields.io/badge/คู่มือ-ภาษาไทย-2ea44f?style=flat-square"></a>
+  <a href="docs/INSTALL-TH.md"><img alt="Thai guide" src="https://img.shields.io/badge/guide-Thai%20version-2ea44f?style=flat-square"></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%2010%2F11-blue?style=flat-square">
   <img alt=".NET" src="https://img.shields.io/badge/.NET-8%20WPF-512BD4?style=flat-square">
   <img alt="Engine" src="https://img.shields.io/badge/render-WebView2%20Chromium-0078D7?style=flat-square">
