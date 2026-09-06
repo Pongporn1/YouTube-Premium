@@ -391,12 +391,16 @@ body.native-player .player-gesture { display: none; }
   line-height: 1.65;
 }
 
-/* Dark pill that doubles as a skeleton until the Google button renders */
+/* Dark pill that doubles as a skeleton until the Google button renders.
+   Compact width on purpose: GIS pins its logo to the left edge, so a wide
+   pill visually splits logo and label. */
 .google-button {
   display: flex;
   justify-content: center;
+  width: 336px;
+  max-width: 100%;
   min-height: 50px;
-  margin-bottom: 8px;
+  margin: 0 auto 8px;
   overflow: hidden;
   background: #2f2f31;
   border: 1px solid #3a3a3c;
