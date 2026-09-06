@@ -2,7 +2,7 @@
   <img src="docs/icon.png" width="150" alt="MyTube Music icon">
 </p>
 
-<h1 align="center">MyTube</h1>
+<h1 align="center">YouTube Premium</h1>
 
 <p align="center">
   <strong>The real YouTube, tuned for Windows — with ads gone and music that never stops.</strong><br>
