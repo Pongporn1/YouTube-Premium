@@ -337,7 +337,98 @@ body.native-player .player-gesture { display: none; }
   }
 }
 
-/* ── Mobile-specific de-clutter (match app breakpoint 680px) ───────────── */
+/* ── Auth gate redesign ────────────────────────────────────────────────── */
+.auth-gate {
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% -18%, rgba(255, 0, 51, .13), transparent 44%),
+    #0f0f0f;
+}
+
+.auth-card {
+  width: min(430px, 100%);
+  overflow: hidden;
+  padding: 42px 34px 26px;
+  text-align: center;
+  background: #1a1a1b;
+  border: 1px solid #2c2c2e;
+  border-radius: 22px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, .55);
+}
+
+.auth-card::after { display: none; }
+
+.auth-brand {
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.auth-brand .brand-mark { width: 44px; height: 31px; border-radius: 8px; }
+
+.auth-brand strong { font-size: 1.55rem; letter-spacing: -.02em; }
+
+.auth-card .eyebrow {
+  margin-bottom: 10px;
+  color: #ff4d5e;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}
+
+.auth-card h1 {
+  margin: 0 0 14px;
+  font-size: clamp(1.8rem, 5.4vw, 2.35rem);
+  line-height: 1.28;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.auth-lead {
+  max-width: 330px;
+  margin: 0 auto 26px;
+  color: #aaaaaa;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Dark pill that doubles as a skeleton until the Google button renders */
+.google-button {
+  display: flex;
+  justify-content: center;
+  min-height: 50px;
+  margin-bottom: 8px;
+  overflow: hidden;
+  background: #2f2f31;
+  border: 1px solid #3a3a3c;
+  border-radius: 25px;
+}
+
+.google-button iframe { border-radius: 25px; }
+
+.auth-message {
+  min-height: 18px;
+  margin: 6px 0 0;
+  color: #9a9a9a;
+  font-size: 12.5px;
+}
+
+.auth-message.error { color: #ff9a9a; }
+
+.auth-footnote {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  color: #707070;
+  border-top: 1px solid #2a2a2a;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+@media (max-width: 680px) {
+  .auth-gate { padding: 16px; }
+
+  .auth-card { padding: 34px 22px 22px; border-radius: 18px; }
+}
+
 @media (max-width: 680px) {
   /* Lock the page to the screen: no horizontal pan, ever. */
   html, body { overflow-x: clip; }
