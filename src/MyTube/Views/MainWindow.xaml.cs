@@ -52,6 +52,19 @@ public partial class MainWindow : Window
         _settings = settings;
         _logger = logger;
         DataContext = viewModel;
+
+        try
+        {
+            var iconPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Resources", "Branding", "MyTube.ico");
+            if (System.IO.File.Exists(iconPath))
+            {
+                Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri(iconPath));
+            }
+        }
+        catch (Exception)
+        {
+            // A missing window icon is cosmetic only.
+        }
         _browserService.ExternalNavigationRequested += OnExternalNavigationRequested;
         _browserService.DownloadRequested += OnDownloadRequested;
         _browserService.BrowserProcessFailed += OnBrowserProcessFailed;

@@ -24,6 +24,8 @@
              CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources\Filters\default-filters.txt"
              CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\Branding\MyTube.ico"
+             CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
