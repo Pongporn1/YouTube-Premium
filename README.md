@@ -1,5 +1,7 @@
 <p align="center">
-  <img src="docs/icon.png" width="150" alt="MyTube Music icon">
+  <img src="docs/icon.png" width="120" alt="MyTube icon">
+  &nbsp;&nbsp;&nbsp;
+  <img src="docs/music-icon.png" width="120" alt="MyTube Music icon">
 </p>
 
 <h1 align="center">YouTube Premium</h1>
