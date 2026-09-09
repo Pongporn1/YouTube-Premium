@@ -57,6 +57,11 @@ public sealed class BrowserService : IDisposable
 
     public event EventHandler? NavigationStateChanged;
 
+    public event EventHandler<bool>? FullscreenChanged;
+
+    private void OnFullscreenChanged(object? sender, object e) =>
+        FullscreenChanged?.Invoke(this, _webView?.CoreWebView2?.ContainsFullScreenElement == true);
+
     public event EventHandler<ExternalNavigationEventArgs>? ExternalNavigationRequested;
 
     public event EventHandler<DownloadRequestEventArgs>? DownloadRequested;
@@ -116,6 +121,7 @@ public sealed class BrowserService : IDisposable
         await RefreshDocumentStartFilterAsync();
         webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
         webView.CoreWebView2.HistoryChanged += OnHistoryChanged;
+        webView.CoreWebView2.ContainsFullScreenElementChanged += OnFullscreenChanged;
         webView.CoreWebView2.NavigationStarting += OnNavigationStarting;
         webView.CoreWebView2.NavigationCompleted += OnNavigationCompleted;
         webView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
@@ -579,6 +585,7 @@ public sealed class BrowserService : IDisposable
                 }
 
                 _webView.CoreWebView2.HistoryChanged -= OnHistoryChanged;
+                _webView.CoreWebView2.ContainsFullScreenElementChanged -= OnFullscreenChanged;
                 _webView.CoreWebView2.NavigationStarting -= OnNavigationStarting;
                 _webView.CoreWebView2.NavigationCompleted -= OnNavigationCompleted;
                 _webView.CoreWebView2.NewWindowRequested -= OnNewWindowRequested;

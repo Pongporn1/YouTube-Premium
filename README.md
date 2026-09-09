@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="docs/hero.png" width="660" alt="MyTube and MyTube Music">
+  <img src="docs/icon.png" width="160" alt="MyTube">
+  <img src="docs/music-icon.png" width="160" alt="MyTube Music">
 </p>
 
 <h1 align="center">YouTube Premium</h1>
@@ -22,6 +23,14 @@
 ---
 
 ## Two apps, one repository
+
+### Desktop update — 2026-09-09
+
+- Updated both Windows and Desktop shortcut icons using the supplied artwork.
+- YouTube fullscreen now hides the app toolbar and covers the taskbar; exiting restores the window.
+- The music button launches the same MyTube Music companion as the Desktop shortcut. Reopening activates the existing player without restarting playback.
+- The companion keeps its existing account/profile and owns its Windows media controls.
+- Deployment layout: keep `win-x64` and `music-x64` side by side. Regenerate icons with `tools/import-icons.ps1`.
 
 | | **MyTube** (`MyTube.exe`) | **MyTubeMusic** (`MyTubeMusic.exe`) |
 |---|---|---|

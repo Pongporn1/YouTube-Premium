@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private bool _shutdownInProgress;
     private bool _processRecoveryInProgress;
     private bool _appFullscreen;
+    private System.Windows.Shell.WindowChrome? _previousChrome;
+    private bool _videoFullscreen;
+    private bool _videoEnteredAppFullscreen;
     private bool _miniPlayerActive;
     private Rect _preMiniBounds;
     private WindowState _preMiniState;
@@ -32,10 +35,8 @@ public partial class MainWindow : Window
     private ResizeMode _previousResizeMode;
     private WindowState _previousWindowState;
     private int _browserRecreateAttempts;
-    private MusicWindow? _musicWindow;
     private readonly MediaTransportService _mediaTransport = new();
     private DispatcherTimer? _mediaPollTimer;
-    private string _mediaTarget = "main";
 
     public MainWindow(
         MainViewModel viewModel,
@@ -68,6 +69,7 @@ public partial class MainWindow : Window
         _browserService.DownloadRequested += OnDownloadRequested;
         _browserService.BrowserProcessFailed += OnBrowserProcessFailed;
         _browserService.BrowserAvailabilityChanged += OnBrowserAvailabilityChanged;
+        _browserService.FullscreenChanged += OnVideoFullscreenChanged;
         StateChanged += OnStateChanged;
         _viewModel.SettingsRequested += OnSettingsRequested;
     }
@@ -103,10 +105,9 @@ public partial class MainWindow : Window
         _browserService.DownloadRequested -= OnDownloadRequested;
         _browserService.BrowserProcessFailed -= OnBrowserProcessFailed;
         _browserService.BrowserAvailabilityChanged -= OnBrowserAvailabilityChanged;
+        _browserService.FullscreenChanged -= OnVideoFullscreenChanged;
         StateChanged -= OnStateChanged;
         _viewModel.SettingsRequested -= OnSettingsRequested;
-        _musicWindow?.Close();
-        _musicWindow = null;
         _browserService.Dispose();
         _logger.Info("Application closed.");
     }
@@ -171,6 +172,8 @@ public partial class MainWindow : Window
 
         if (key == Key.Escape && _appFullscreen)
         {
+            if (_videoFullscreen)
+                await _browserService.ExecuteScriptAsyncSafe("document.exitFullscreen().catch(() => {});");
             ExitApplicationFullscreen();
             e.Handled = true;
             return;
@@ -240,14 +243,22 @@ public partial class MainWindow : Window
     {
         if (_appFullscreen)
         {
+            if (_videoFullscreen)
+            {
+                _ = _browserService.ExecuteScriptAsyncSafe("document.exitFullscreen().catch(() => {});");
+            }
             ExitApplicationFullscreen();
             return;
         }
 
+        if (_miniPlayerActive) ExitMiniPlayer();
         _previousWindowStyle = WindowStyle;
         _previousResizeMode = ResizeMode;
         _previousWindowState = WindowState;
         _appFullscreen = true;
+        _previousChrome = System.Windows.Shell.WindowChrome.GetWindowChrome(this);
+        WindowState = WindowState.Normal;
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, null);
         TitleBarRow.Height = new GridLength(0);
         WindowStyle = WindowStyle.None;
         ResizeMode = ResizeMode.NoResize;
@@ -262,33 +273,47 @@ public partial class MainWindow : Window
         }
 
         _appFullscreen = false;
+        WindowState = WindowState.Normal;
+        System.Windows.Shell.WindowChrome.SetWindowChrome(this, _previousChrome);
         WindowStyle = _previousWindowStyle;
         ResizeMode = _previousResizeMode;
         WindowState = _previousWindowState;
         TitleBarRow.Height = new GridLength(48);
     }
 
-    private async void OnMusicClick(object sender, RoutedEventArgs e)
+    private void OnVideoFullscreenChanged(object? sender, bool fullscreen)
     {
-        // The music window hosts its own WebView2, so its session survives any
-        // navigation in the main window — home, search, mini player, minimize.
-        if (_musicWindow is { IsLoaded: true })
+        _videoFullscreen = fullscreen;
+        if (fullscreen)
         {
-            _musicWindow.Activate();
-            return;
+            _videoEnteredAppFullscreen = !_appFullscreen;
+            if (_videoEnteredAppFullscreen) ToggleApplicationFullscreen();
         }
+        else
+        {
+            if (_videoEnteredAppFullscreen) ExitApplicationFullscreen();
+            _videoEnteredAppFullscreen = false;
+        }
+    }
 
+    private void OnMusicClick(object sender, RoutedEventArgs e)
+    {
         try
         {
-            var environment = await _browserService.GetEnvironmentAsync();
-            // Deliberately unowned: owned windows hide (and may pause) when the
-            // main window is minimized, which defeats background listening.
-            _musicWindow = new MusicWindow(_settings, environment);
-            _musicWindow.Show();
+            var player = System.IO.Path.GetFullPath(System.IO.Path.Combine(
+                AppContext.BaseDirectory, "..", "music-x64", "MyTubeMusic.exe"));
+            if (!System.IO.File.Exists(player))
+                throw new System.IO.FileNotFoundException("MyTube Music is not installed next to MyTube.", player);
+            Process.Start(new ProcessStartInfo(player)
+            {
+                UseShellExecute = true,
+                WorkingDirectory = System.IO.Path.GetDirectoryName(player)!,
+            });
         }
         catch (Exception exception)
         {
             _logger.Error("The music window could not be opened.", exception);
+            MessageBox.Show("MyTube Music could not be opened. Please install the music companion next to MyTube.", "MyTube");
         }
     }
 
@@ -333,7 +358,7 @@ public partial class MainWindow : Window
 
     private void EnterMiniPlayer()
     {
-        if (_miniPlayerActive)
+        if (_miniPlayerActive || _appFullscreen)
         {
             return;
         }
@@ -407,18 +432,8 @@ public partial class MainWindow : Window
             var mainState = _browserService.IsSuspended
                 ? null
                 : ParseMediaState(await _browserService.ExecuteScriptAsyncSafe(PlayerQueryScript));
-            var musicWindow = _musicWindow is { IsLoaded: true } ? _musicWindow : null;
-            var musicState = musicWindow is null || musicWindow.IsSuspended
-                ? null
-                : ParseMediaState(await musicWindow.ExecuteScriptAsyncSafe(MusicQueryScript));
-
-            // Hardware keys always control whichever source is actually playing;
-            // with both playing (or both idle), the music window wins.
-            _mediaTarget = musicState?.Playing == true ? "music"
-                : mainState?.Playing == true ? "main"
-                : musicState is not null ? "music" : "main";
-
-            var state = _mediaTarget == "music" ? (musicState ?? mainState) : (mainState ?? musicState);
+            // The standalone music player owns its own Windows media session.
+            var state = mainState;
             if (state is not { } current)
             {
                 return;
@@ -441,7 +456,7 @@ public partial class MainWindow : Window
         {
             try
             {
-                if (_browserService.IsSuspended && _mediaTarget != "music")
+                if (_browserService.IsSuspended)
                 {
                     // A suspended renderer cannot honor keys; wake it first.
                     await _browserService.SetSuspendedAsync(false);
@@ -461,14 +476,7 @@ public partial class MainWindow : Window
                 }
 
                 var script = PlayerCommandScript(action);
-                if (_mediaTarget == "music" && _musicWindow is { IsLoaded: true } music)
-                {
-                    await music.ExecuteScriptAsyncSafe(script);
-                }
-                else
-                {
-                    await _browserService.ExecuteScriptAsyncSafe(script);
-                }
+                await _browserService.ExecuteScriptAsyncSafe(script);
             }
             catch (Exception)
             {
@@ -646,6 +654,7 @@ public partial class MainWindow : Window
             return;
         }
 
+        OnVideoFullscreenChanged(this, false);
         _ = Dispatcher.BeginInvoke(new Action(() => _ = RecoverFromBrowserFailureAsync(e.Kind)));
     }
 
